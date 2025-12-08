@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../features/attendance/presentation/pages/attendance_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/leaves/presentation/pages/leave_page.dart';
 import '../../features/notifications/presentation/pages/notification_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+
+// Use NotificationDrawer for sidebar notifications
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -25,37 +29,199 @@ class _HomeShellState extends State<HomeShell> {
     SettingsPage(),
   ];
 
+  final _titles = const [
+    'Dashboard',
+    'Attendance',
+    'Leave',
+    'Profile',
+    'Settings',
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : AppColors.backgroundPurple,
       appBar: AppBar(
-        title: const Text('YDC LMS'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const NotificationPage()),
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8.w),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.primaryColor,
+                    theme.primaryColor.withValues(alpha: 0.8),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+              child: Icon(
+                Icons.timelapse_rounded,
+                color: Colors.white,
+                size: 20.sp,
+              ),
             ),
-          )
+            SizedBox(width: 12.w),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Leave Management System',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  _titles[_currentIndex],
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: isDark ? Colors.white54 : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: EdgeInsets.only(right: 8.w),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : theme.primaryColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: Icon(
+                Icons.notifications_outlined,
+                color: theme.primaryColor,
+                size: 22.sp,
+              ),
+              onPressed: () => NotificationDrawer.show(context),
+            ),
+          ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      body: IndexedStack(index: _currentIndex, children: _pages),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(
+                  context,
+                  index: 0,
+                  icon: Icons.dashboard_outlined,
+                  activeIcon: Icons.dashboard_rounded,
+                  label: 'Dashboard',
+                ),
+                _buildNavItem(
+                  context,
+                  index: 1,
+                  icon: Icons.access_time_outlined,
+                  activeIcon: Icons.access_time_filled,
+                  label: 'Attendance',
+                ),
+                _buildNavItem(
+                  context,
+                  index: 2,
+                  icon: Icons.beach_access_outlined,
+                  activeIcon: Icons.beach_access,
+                  label: 'Leave',
+                ),
+                _buildNavItem(
+                  context,
+                  index: 3,
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'Profile',
+                ),
+                _buildNavItem(
+                  context,
+                  index: 4,
+                  icon: Icons.settings_outlined,
+                  activeIcon: Icons.settings_rounded,
+                  label: 'Settings',
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.access_time), label: 'Attendance'),
-          BottomNavigationBarItem(icon: Icon(Icons.beach_access), label: 'Leave'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
-        ],
+    );
+  }
+
+  Widget _buildNavItem(
+    BuildContext context, {
+    required int index,
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+  }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final isSelected = _currentIndex == index;
+
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 16.w : 12.w,
+          vertical: 8.h,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.primaryColor.withValues(alpha: isDark ? 0.2 : 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              size: 24.sp,
+              color: isSelected
+                  ? theme.primaryColor
+                  : (isDark ? Colors.white60 : Colors.grey.shade600),
+            ),
+            SizedBox(height: 4.h),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10.sp,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected
+                    ? theme.primaryColor
+                    : (isDark ? Colors.white60 : Colors.grey.shade600),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-

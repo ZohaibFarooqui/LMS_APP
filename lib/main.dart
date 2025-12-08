@@ -10,4 +10,6 @@ Future<void> main() async {
   await configureDependencies();
   Bloc.observer = AppBlocObserver();
   runApp(const LmsApp());
+
+  // print('Hello, World!');
 }

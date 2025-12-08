@@ -39,3 +39,7 @@ class BiometricToggled extends AuthEvent {
   List<Object?> get props => [enabled];
 }
 
+class BiometricLoginRequested extends AuthEvent {
+  const BiometricLoginRequested();
+}
+

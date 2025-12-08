@@ -21,8 +21,12 @@ class LmsApp extends StatelessWidget {
       builder: (context, child) {
         return MultiBlocProvider(
           providers: [
-            BlocProvider<AppBloc>(create: (_) => getIt<AppBloc>()),
-            BlocProvider<AuthBloc>(create: (_) => getIt<AuthBloc>()..add(const AuthCheckRequested())),
+            BlocProvider<AppBloc>(
+              create: (_) => getIt<AppBloc>()..loadTheme(),
+            ),
+            BlocProvider<AuthBloc>(
+              create: (_) => getIt<AuthBloc>()..add(const AuthCheckRequested()),
+            ),
           ],
           child: BlocBuilder<AppBloc, AppState>(
             builder: (context, appState) {
@@ -31,6 +35,7 @@ class LmsApp extends StatelessWidget {
                 debugShowCheckedModeBanner: false,
                 theme: AppTheme.light,
                 darkTheme: AppTheme.dark,
+                // Use system theme mode - this will automatically follow device settings
                 themeMode: appState.themeMode,
                 home: const _AppRouter(),
               );
@@ -63,4 +68,3 @@ class _AppRouter extends StatelessWidget {
     );
   }
 }
-

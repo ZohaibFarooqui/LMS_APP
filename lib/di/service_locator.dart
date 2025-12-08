@@ -9,6 +9,7 @@ import '../core/services/geofence_service.dart';
 import '../core/services/local_storage_service.dart';
 import '../core/services/location_service.dart';
 import '../core/services/notification_service.dart';
+import '../core/services/permission_service.dart';
 import '../core/services/secure_storage_service.dart';
 import '../data/datasources/lms_local_data_source.dart';
 import '../data/datasources/lms_remote_data_source.dart';
@@ -76,6 +77,7 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton<NotificationService>(() => NotificationService())
     ..registerLazySingleton<BiometricService>(() => BiometricService())
+    ..registerLazySingleton<PermissionService>(() => PermissionService())
     ..registerLazySingleton<LmsLocalDataSource>(() => LmsLocalDataSource(getIt<LocalStorageService>()))
     ..registerLazySingleton<LmsRemoteDataSourceImpl>(
       () => LmsRemoteDataSourceImpl(
@@ -112,6 +114,7 @@ Future<void> configureDependencies() async {
         logoutUseCase: getIt(),
         toggleBiometricUseCase: getIt(),
         authRepository: getIt(),
+        biometricService: getIt(),
       ),
     );
 
@@ -177,6 +180,6 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => SettingsCubit(getIt()));
 
   // Global Blocs
-  getIt.registerFactory(() => AppBloc());
+  getIt.registerLazySingleton(() => AppBloc(storageService: getIt<LocalStorageService>()));
 }
 

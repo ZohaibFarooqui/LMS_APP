@@ -1,21 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-import '../../../../shared/widgets/app_button.dart';
 import '../bloc/auth_bloc.dart';
-import '../widgets/login_form.dart';
+import '../bloc/login_form/login_form_bloc.dart';
+import '../widgets/animated_background.dart';
+import '../widgets/animated_logo.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/gradient_button.dart';
+import '../widgets/login_text_field.dart';
+import '../widgets/slide_fade_animation.dart';
 
-class LoginPage extends StatefulWidget {
+/// A beautiful, modern login page with glassmorphism design
+///
+/// Features:
+/// - Responsive layout for all devices
+/// - Smooth animations
+/// - Glassmorphism card design
+/// - BLoC state management
+/// - Dark mode support
+class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => LoginFormBloc(),
+      child: const _LoginPageContent(),
+    );
+  }
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageContent extends StatefulWidget {
+  const _LoginPageContent();
+
+  @override
+  State<_LoginPageContent> createState() => _LoginPageContentState();
+}
+
+class _LoginPageContentState extends State<_LoginPageContent> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _rememberMe = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize form with remembered username if available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authState = context.read<AuthBloc>().state;
+      if (authState.rememberedUsername != null) {
+        _usernameController.text = authState.rememberedUsername!;
+        context.read<LoginFormBloc>().add(
+          LoginFormInitialized(
+            rememberedUsername: authState.rememberedUsername,
+          ),
+        );
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -24,86 +66,533 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _onLogin() {
-    context.read<AuthBloc>().add(
-          LoginRequested(
-            username: _usernameController.text.trim(),
-            password: _passwordController.text.trim(),
-            rememberMe: _rememberMe,
-          ),
-        );
+  void _handleLogin() {
+    final loginFormBloc = context.read<LoginFormBloc>();
+    loginFormBloc.add(const LoginFormSubmitted());
+
+    // If form is valid, trigger actual login
+    final formState = loginFormBloc.state;
+    if (formState.username.isNotEmpty && formState.password.isNotEmpty) {
+      context.read<AuthBloc>().add(
+        LoginRequested(
+          username: formState.username,
+          password: formState.password,
+          rememberMe: formState.rememberMe,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: BlocConsumer<AuthBloc, AuthState>(
-          listener: (context, state) {
-            if (state.errorMessage != null && state.status == AuthStatus.failure) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.errorMessage!)),
-              );
-            }
-            if (state.rememberedUsername != null) {
-              _usernameController.text = state.rememberedUsername!;
-            }
-          },
-          builder: (context, state) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 32),
-                  Text(
-                    'Welcome Back',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign in with your employee credentials',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 32),
-                  LoginForm(
-                    usernameController: _usernameController,
-                    passwordController: _passwordController,
-                    rememberMe: _rememberMe,
-                    onRememberMeChanged: (value) => setState(() => _rememberMe = value),
-                    onLoginPressed: _onLogin,
-                    isLoading: state.status == AuthStatus.loading,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Switch(
-                        value: state.biometricEnabled,
-                        onChanged: (value) => context.read<AuthBloc>().add(BiometricToggled(value)),
+      resizeToAvoidBottomInset: true,
+      body: BlocListener<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state.status == AuthStatus.failure &&
+              state.errorMessage != null) {
+            // Show error snackbar
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.white),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: Text(
+                        state.errorMessage!,
+                        style: const TextStyle(color: Colors.white),
                       ),
-                      const Text('Enable Biometric Login'),
-                    ],
-                  ),
-                  const Spacer(),
-                  const SizedBox(height: 12),
-                  if (state.biometricEnabled && state.user != null)
-                    AppButton(
-                      label: 'Use Biometrics',
-                      icon: Icons.fingerprint,
-                      onPressed: () {
-                        // Would trigger biometric auth using platform APIs.
-                        if (_usernameController.text.isEmpty && state.user != null) {
-                          _usernameController.text = state.user!.employeeCode;
-                        }
-                      },
                     ),
-                ],
+                  ],
+                ),
+                backgroundColor: Theme.of(context).colorScheme.error,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                margin: EdgeInsets.all(16.w),
               ),
             );
+            // Reset form status
+            context.read<LoginFormBloc>().loginFailure(state.errorMessage!);
+          }
+        },
+        child: AnimatedBackground(
+          imagePath: 'lib/assets/images/login-bgg.jpg',
+          blurAmount: 3.5,
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return _buildResponsiveLayout(context, constraints);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    final screenWidth = constraints.maxWidth;
+    final screenHeight = constraints.maxHeight;
+    final isTablet = screenWidth > 600;
+    final isLandscape = screenWidth > screenHeight;
+    final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+    final isSmallScreen = screenHeight < 700;
+
+    // Responsive card width
+    double cardWidth;
+    if (isTablet) {
+      cardWidth = isLandscape ? 450.w.clamp(400, 500) : 420.w.clamp(380, 480);
+    } else {
+      cardWidth = screenWidth - 48.w;
+    }
+
+    // Responsive padding
+    final horizontalPadding = isTablet ? 40.w : 24.w;
+    final verticalPadding = isTablet ? 32.h : 12.h;
+
+    // Responsive logo size - smaller on small screens
+    final logoSize = isTablet
+        ? 140.w.clamp(100.0, 160.0)
+        : isSmallScreen
+        ? 60.w.clamp(50.0, 70.0)
+        : 90.w.clamp(70.0, 100.0);
+
+    final content = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Animated Logo - hide when keyboard is visible on small screens
+        if (!keyboardVisible || !isSmallScreen)
+          SlideFadeAnimation(
+            delay: const Duration(milliseconds: 100),
+            slideDirection: SlideDirection.fromTop,
+            child: AnimatedLogo(
+              imagePath: 'lib/assets/images/YDC-HD.png',
+              size: keyboardVisible ? logoSize * 0.6 : logoSize,
+              duration: const Duration(milliseconds: 1000),
+            ),
+          ),
+
+        SizedBox(
+          height: keyboardVisible ? 12.h : (isSmallScreen ? 16.h : 24.h),
+        ),
+
+        // Glass Card with Form
+        Center(
+          child: SlideFadeAnimation(
+            delay: const Duration(milliseconds: 300),
+            child: SizedBox(
+              width: cardWidth,
+              child: GlassCard(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 32.w : 20.w,
+                  vertical: isTablet ? 32.h : (isSmallScreen ? 16.h : 20.h),
+                ),
+                child: _buildLoginForm(context, isTablet),
+              ),
+            ),
+          ),
+        ),
+
+        // Footer - hide when keyboard is visible or small screen
+        if (!keyboardVisible && !isSmallScreen) ...[
+          SizedBox(height: 16.h),
+          SlideFadeAnimation(
+            delay: const Duration(milliseconds: 600),
+            child: _buildFooter(context),
+          ),
+        ],
+      ],
+    );
+
+    // Always use scrollable layout to prevent overflow
+    return SingleChildScrollView(
+      physics: const ClampingScrollPhysics(),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: constraints.maxHeight - verticalPadding * 2,
+        ),
+        child: Center(child: content),
+      ),
+    );
+  }
+
+  Widget _buildLoginForm(BuildContext context, bool isTablet) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isSmallScreen = screenHeight < 700;
+
+    return BlocBuilder<LoginFormBloc, LoginFormState>(
+      builder: (context, formState) {
+        return BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, authState) {
+            final isLoading =
+                authState.status == AuthStatus.loading ||
+                formState.isSubmitting;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title
+                SlideFadeAnimation(
+                  delay: const Duration(milliseconds: 400),
+                  child: Text(
+                    'Welcome Back',
+                    style: TextStyle(
+                      fontSize: isTablet
+                          ? 28.sp
+                          : (isSmallScreen ? 20.sp : 24.sp),
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : Colors.black87,
+                      letterSpacing: -0.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                SizedBox(height: isSmallScreen ? 4.h : 6.h),
+
+                // Subtitle
+                SlideFadeAnimation(
+                  delay: const Duration(milliseconds: 450),
+                  child: Text(
+                    'Login to your account',
+                    style: TextStyle(
+                      fontSize: isTablet
+                          ? 14.sp
+                          : (isSmallScreen ? 11.sp : 13.sp),
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                SizedBox(
+                  height: isTablet ? 28.h : (isSmallScreen ? 16.h : 24.h),
+                ),
+
+                // Username Field
+                SlideFadeAnimation(
+                  delay: const Duration(milliseconds: 500),
+                  child: LoginTextField(
+                    hintText: 'Username / Employee Code',
+                    controller: _usernameController,
+                    prefixIcon: Icons.person_outline_rounded,
+                    keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.next,
+                    enabled: !isLoading,
+                    errorText: formState.usernameError,
+                    onChanged: (value) {
+                      context.read<LoginFormBloc>().add(
+                        LoginUsernameChanged(value),
+                      );
+                    },
+                  ),
+                ),
+
+                SizedBox(height: isSmallScreen ? 10.h : 14.h),
+
+                // Password Field
+                SlideFadeAnimation(
+                  delay: const Duration(milliseconds: 550),
+                  child: LoginTextField(
+                    hintText: 'Password',
+                    controller: _passwordController,
+                    prefixIcon: Icons.lock_outline_rounded,
+                    obscureText: !formState.isPasswordVisible,
+                    textInputAction: TextInputAction.done,
+                    enabled: !isLoading,
+                    errorText: formState.passwordError,
+                    onChanged: (value) {
+                      context.read<LoginFormBloc>().add(
+                        LoginPasswordChanged(value),
+                      );
+                    },
+                    onSubmitted: (_) => _handleLogin(),
+                    suffixIcon: IconButton(
+                      onPressed: () {
+                        context.read<LoginFormBloc>().add(
+                          const LoginPasswordVisibilityToggled(),
+                        );
+                      },
+                      icon: Icon(
+                        formState.isPasswordVisible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: isDark ? Colors.white54 : Colors.grey.shade600,
+                        size: 22.sp,
+                      ),
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: isSmallScreen ? 8.h : 10.h),
+
+                // Remember Me & Forgot Password Row
+                SlideFadeAnimation(
+                  delay: const Duration(milliseconds: 600),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Remember Me
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            height: 22.h,
+                            width: 22.w,
+                            child: Checkbox(
+                              value: formState.rememberMe,
+                              onChanged: isLoading
+                                  ? null
+                                  : (_) {
+                                      context.read<LoginFormBloc>().add(
+                                        const LoginRememberMeToggled(),
+                                      );
+                                    },
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4.r),
+                              ),
+                              side: BorderSide(
+                                color: isDark
+                                    ? Colors.white38
+                                    : Colors.grey.shade400,
+                                width: 1.5,
+                              ),
+                              activeColor: theme.primaryColor,
+                            ),
+                          ),
+                          SizedBox(width: 6.w),
+                          Text(
+                            'Remember me',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Forgot Password
+                      TextButton(
+                        onPressed: isLoading
+                            ? null
+                            : () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text(
+                                      'Forgot password feature coming soon',
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12.r),
+                                    ),
+                                  ),
+                                );
+                              },
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6.w,
+                            vertical: 4.h,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: theme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: isSmallScreen ? 14.h : 20.h),
+
+                // Login Button
+                SlideFadeAnimation(
+                  delay: const Duration(milliseconds: 650),
+                  child: GradientButton(
+                    label: 'Sign In',
+                    icon: Icons.login_rounded,
+                    isLoading: isLoading,
+                    isEnabled: formState.isSubmitEnabled && !isLoading,
+                    onPressed: _handleLogin,
+                    height: isTablet ? 54.h : 50.h,
+                  ),
+                ),
+
+                // Biometric Login Option
+                if (authState.biometricEnabled) ...[
+                  SizedBox(height: isSmallScreen ? 12.h : 16.h),
+                  SlideFadeAnimation(
+                    delay: const Duration(milliseconds: 700),
+                    child: _buildBiometricButton(context, theme, isLoading),
+                  ),
+                ],
+              ],
+            );
           },
+        );
+      },
+    );
+  }
+
+  Widget _buildBiometricButton(
+    BuildContext context,
+    ThemeData theme,
+    bool isLoading,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.primaryColor.withValues(alpha: 0.1),
+            const Color(0xFF4338CA).withValues(alpha: 0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: theme.primaryColor.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading
+              ? null
+              : () {
+                  context.read<AuthBloc>().add(const BiometricLoginRequested());
+                },
+          borderRadius: BorderRadius.circular(12.r),
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 20.w),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.w),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [theme.primaryColor, const Color(0xFF4338CA)],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.fingerprint_rounded,
+                    color: Colors.white,
+                    size: 24.sp,
+                  ),
+                ),
+                SizedBox(width: 12.w),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Login with Biometrics',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        fontWeight: FontWeight.w600,
+                        color: theme.primaryColor,
+                      ),
+                    ),
+                    Text(
+                      'Use fingerprint or Face ID',
+                      style: TextStyle(
+                        fontSize: 11.sp,
+                        color: theme.primaryColor.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16.sp,
+                  color: theme.primaryColor,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '© 2024 YDC. All rights reserved.',
+          style: TextStyle(
+            fontSize: 11.sp,
+            color: isDark ? Colors.white38 : Colors.white70,
+            fontWeight: FontWeight.w400,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: 6.h),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildFooterLink(context, 'Privacy Policy'),
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 10.w),
+              width: 4.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.white54,
+                shape: BoxShape.circle,
+              ),
+            ),
+            _buildFooterLink(context, 'Terms of Service'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterLink(BuildContext context, String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GestureDetector(
+      onTap: () {
+        // TODO: Navigate to respective pages
+      },
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11.sp,
+          color: isDark ? Colors.white54 : Colors.white70,
+          fontWeight: FontWeight.w500,
+          decoration: TextDecoration.underline,
+          decorationColor: isDark ? Colors.white54 : Colors.white70,
         ),
       ),
     );
   }
 }
-
