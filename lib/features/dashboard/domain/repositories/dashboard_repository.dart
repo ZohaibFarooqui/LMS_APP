@@ -4,4 +4,3 @@ abstract class DashboardRepository {
   Future<DashboardSummary> fetchDashboard();
   DashboardSummary? cachedDashboard();
 }
-

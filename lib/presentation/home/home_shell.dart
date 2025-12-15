@@ -56,9 +56,11 @@ class _HomeShellState extends State<HomeShell> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    theme.primaryColor,
-                    theme.primaryColor.withValues(alpha: 0.8),
+                    isDark ? AppColors.secondary : theme.primaryColor,
+                    (isDark ? AppColors.secondary : theme.primaryColor).withValues(alpha: 0.8),
                   ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(10.r),
               ),
@@ -68,6 +70,7 @@ class _HomeShellState extends State<HomeShell> {
                 size: 20.sp,
               ),
             ),
+            
             SizedBox(width: 12.w),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +208,7 @@ class _HomeShellState extends State<HomeShell> {
               isSelected ? activeIcon : icon,
               size: 24.sp,
               color: isSelected
-                  ? theme.primaryColor
+                  ? (isDark ? AppColors.secondary : theme.primaryColor)
                   : (isDark ? Colors.white60 : Colors.grey.shade600),
             ),
             SizedBox(height: 4.h),
@@ -215,7 +218,7 @@ class _HomeShellState extends State<HomeShell> {
                 fontSize: 10.sp,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 color: isSelected
-                    ? theme.primaryColor
+                    ? (isDark ? AppColors.secondary : theme.primaryColor)
                     : (isDark ? Colors.white60 : Colors.grey.shade600),
               ),
             ),

@@ -10,4 +10,3 @@ abstract class DashboardEvent extends Equatable {
 class DashboardRequested extends DashboardEvent {
   const DashboardRequested();
 }
-

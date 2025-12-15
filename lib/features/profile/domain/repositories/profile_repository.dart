@@ -1,8 +1,9 @@
-import '../entities/profile_entity.dart';
+import '../entities/enhanced_profile_entity.dart';
 
-abstract class ProfileRepository {
-  Future<ProfileEntity> fetchProfile();
-  Future<ProfileEntity> updateContacts({required String email, required String phone});
-  ProfileEntity? cachedProfile();
+abstract class EnhancedProfileRepository {
+  Future<EnhancedProfileEntity> fetchProfile();
+  Future<EnhancedProfileEntity> updateContacts({
+    required String email,
+    required String phone,
+  });
 }
-

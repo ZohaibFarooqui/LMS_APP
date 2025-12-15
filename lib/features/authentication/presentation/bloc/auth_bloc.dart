@@ -2,6 +2,8 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/services/biometric_service.dart';
+import '../../../../core/services/secure_storage_service.dart';
+import '../../../../di/service_locator.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/authenticate_user_usecase.dart';
@@ -79,6 +81,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         event.username,
         event.password,
       );
+
+      // Store phone number (username) in secure storage for API calls
+      final secureStorage = getIt<SecureStorageService>();
+      await secureStorage.write('phone_number', event.username);
+
       await _authRepository.setRememberMe(
         event.rememberMe,
         username: event.username,

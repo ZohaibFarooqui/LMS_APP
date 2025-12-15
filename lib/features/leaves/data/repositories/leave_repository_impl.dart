@@ -1,38 +1,51 @@
-import '../../../../data/datasources/lms_local_data_source.dart';
-import '../../../../data/datasources/lms_remote_data_source.dart';
 import '../../domain/entities/leave_balance.dart';
 import '../../domain/entities/leave_request.dart';
 import '../../domain/repositories/leave_repository.dart';
+import '../datasources/leave_remote_data_source.dart';
 
 class LeaveRepositoryImpl implements LeaveRepository {
-  LeaveRepositoryImpl(this._remote, this._local);
+  LeaveRepositoryImpl(this._remote, this._empPkProvider);
 
-  final LmsRemoteDataSource _remote;
-  final LmsLocalDataSource _local;
+  final LeaveRemoteDataSource _remote;
+  final Future<String?> Function() _empPkProvider;
+
+  List<LeaveBalance>? _cachedBalances;
+  List<LeaveRequest>? _cachedRequests;
 
   @override
-  List<LeaveBalance>? cachedBalances() => _local.balances();
+  List<LeaveBalance>? cachedBalances() => _cachedBalances;
 
   @override
-  List<LeaveRequest>? cachedRequests() => _local.leaveRequests();
+  List<LeaveRequest>? cachedRequests() => _cachedRequests;
 
   @override
   Future<List<LeaveBalance>> fetchBalances() async {
-    final data = await _remote.leaveBalances();
-    await _local.cacheBalances(data);
+    final empPk = await _empPkProvider() ?? '';
+    final data = await _remote.fetchBalances(empPk);
+    _cachedBalances = data;
     return data;
   }
 
   @override
   Future<List<LeaveRequest>> fetchRequests() async {
-    final data = await _remote.leaveRequests();
-    await _local.cacheLeaveRequests(data);
+    final empPk = await _empPkProvider() ?? '';
+    final data = await _remote.fetchRequests(empPk);
+    _cachedRequests = data;
     return data;
   }
 
   @override
-  Future<void> submitRequest(LeaveRequest request) {
-    return _remote.submitLeave(request);
+  Future<void> submitRequest(LeaveRequest request) async {
+    final empPk = await _empPkProvider() ?? '';
+    await _remote.submitRequest(
+      empPk: empPk,
+      body: {
+        'type': request.type,
+        'from_date': request.fromDate.toIso8601String().split('T').first,
+        'to_date': request.toDate.toIso8601String().split('T').first,
+        'half_day': request.halfDay,
+        'reason': request.reason,
+      },
+    );
   }
 }
-

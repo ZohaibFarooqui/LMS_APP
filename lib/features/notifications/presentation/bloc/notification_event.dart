@@ -8,15 +8,19 @@ abstract class NotificationEvent extends Equatable {
 }
 
 class NotificationsRequested extends NotificationEvent {
-  const NotificationsRequested();
+  const NotificationsRequested({this.page = 1, this.limit = 20});
+
+  final int page;
+  final int limit;
+
+  @override
+  List<Object?> get props => [page, limit];
 }
 
-class NotificationRead extends NotificationEvent {
-  const NotificationRead(this.id);
-
+class NotificationMarkedRead extends NotificationEvent {
+  const NotificationMarkedRead(this.id);
   final String id;
 
   @override
   List<Object?> get props => [id];
 }
-

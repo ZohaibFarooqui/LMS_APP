@@ -12,4 +12,3 @@ class GetAttendanceReportUseCase {
 
   List<AttendanceRecord>? cached() => _repository.cachedAttendance();
 }
-

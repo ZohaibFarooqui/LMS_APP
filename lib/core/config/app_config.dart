@@ -1,8 +1,8 @@
 class AppConfig {
   const AppConfig({
-    this.baseUrl = 'https://api.ydc.com/lms',
+    this.baseUrl = 'http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/',
     this.appName = 'YDC LMS',
-    this.useMockData = true,
+    this.useMockData = false,
     this.defaultGeoLatitude = 24.85851,
     this.defaultGeoLongitude = 67.05,
     this.geoFenceRadiusMeters = 200,

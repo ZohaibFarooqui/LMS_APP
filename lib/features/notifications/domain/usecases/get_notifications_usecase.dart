@@ -1,4 +1,3 @@
-import '../entities/notification_message.dart';
 import '../repositories/notification_repository.dart';
 
 class GetNotificationsUseCase {
@@ -6,7 +5,7 @@ class GetNotificationsUseCase {
 
   final NotificationRepository _repository;
 
-  Future<List<NotificationMessage>> call() => _repository.fetchNotifications();
-  List<NotificationMessage>? cached() => _repository.cachedNotifications();
+  Future<NotificationPage> call(int page, int limit) {
+    return _repository.fetchNotifications(page: page, limit: limit);
+  }
 }
-

@@ -1,29 +1,28 @@
-import '../../../../data/datasources/lms_local_data_source.dart';
-import '../../../../data/datasources/lms_remote_data_source.dart';
-import '../../domain/entities/notification_message.dart';
 import '../../domain/repositories/notification_repository.dart';
+import '../datasources/notification_remote_data_source.dart';
 
 class NotificationRepositoryImpl implements NotificationRepository {
-  NotificationRepositoryImpl(this._remote, this._local);
+  NotificationRepositoryImpl(this._remoteDataSource, this._empPkProvider);
 
-  final LmsRemoteDataSource _remote;
-  final LmsLocalDataSource _local;
-
-  @override
-  List<NotificationMessage>? cachedNotifications() => _local.notifications();
+  final NotificationRemoteDataSource _remoteDataSource;
+  final Future<String?> Function() _empPkProvider;
 
   @override
-  Future<List<NotificationMessage>> fetchNotifications() async {
-    final items = await _remote.notifications();
-    await _local.cacheNotifications(items);
-    return items;
+  Future<NotificationPage> fetchNotifications({
+    required int page,
+    required int limit,
+  }) async {
+    final empPk = await _empPkProvider() ?? '';
+    return _remoteDataSource.fetchNotifications(
+      empPk: empPk,
+      page: page,
+      limit: limit,
+    );
   }
 
   @override
-  Future<void> markAsRead(String id) async {
-    final cached = _local.notifications() ?? [];
-    final updated = cached.map((e) => e.id == id ? e.copyWith(isRead: true) : e).toList();
-    await _local.cacheNotifications(updated);
+  Future<void> markRead(String id) async {
+    final empPk = await _empPkProvider() ?? '';
+    await _remoteDataSource.markRead(empPk: empPk, id: id);
   }
 }
-

@@ -1,17 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:lms/features/attendance/presentation/bloc/biometric_attendance_bloc.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/attendance_status_service.dart'
+    as status_service;
 import '../../../../core/utils/date_formatter.dart';
 import '../../../../di/service_locator.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
+import '../../../authentication/presentation/bloc/auth_bloc.dart';
 import '../../domain/entities/attendance_record.dart';
-import '../../domain/entities/attendance_summary.dart';
 import '../bloc/attendance_bloc.dart';
+import '../widgets/attendance_calendar.dart';
+import 'biometric_attendance_page.dart';
 
-class AttendancePage extends StatelessWidget {
+class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
+
+  @override
+  State<AttendancePage> createState() => _AttendancePageState();
+}
+
+class _AttendancePageState extends State<AttendancePage> {
+  DateTime _selectedDate = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +31,8 @@ class AttendancePage extends StatelessWidget {
       create: (_) => getIt<AttendanceBloc>()..add(const AttendanceRequested()),
       child: BlocBuilder<AttendanceBloc, AttendanceState>(
         builder: (context, state) {
-          if (state.status == AttendanceStatus.loading && state.records.isEmpty) {
+          if (state.status == AttendanceStatus.loading &&
+              state.records.isEmpty) {
             return const LoadingIndicator();
           }
           return RefreshIndicator(
@@ -28,38 +41,50 @@ class AttendancePage extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.all(16.w),
               children: [
-                _DateRangePicker(
-                  fromDate: state.fromDate,
-                  toDate: state.toDate,
-                  onFromDateSelected: (value) =>
-                      _onDateChanged(context, value, state.toDate),
-                  onToDateSelected: (value) =>
-                      _onDateChanged(context, state.fromDate, value),
-                ),
+                // Biometric Attendance Button
+                _BiometricAttendanceButton(),
                 SizedBox(height: 16.h),
-                _LoadButton(
-                  isLoading: state.status == AttendanceStatus.loading,
-                  onPressed: () => context.read<AttendanceBloc>().add(
-                        AttendanceRangeChanged(
-                          from: state.fromDate,
-                          to: state.toDate,
-                        ),
-                      ),
+                // Calendar View
+                _SectionHeader(
+                  title: 'Attendance Calendar',
+                  icon: Icons.calendar_month_rounded,
+                ),
+                SizedBox(height: 12.h),
+                AttendanceCalendar(
+                  records: state.records,
+                  selectedDate: _selectedDate,
+                  onDateSelected: (date) {
+                    setState(() {
+                      _selectedDate = date;
+                    });
+                  },
                 ),
                 SizedBox(height: 20.h),
+                // Selected Date Details (moved up, directly below calendar)
+                if (_getSelectedDateRecord(state.records) != null) ...[
+                  _SectionHeader(
+                    title: 'Details',
+                    icon: Icons.info_outline_rounded,
+                  ),
+                  SizedBox(height: 12.h),
+                  _AttendanceDetailsCard(
+                    record: _getSelectedDateRecord(state.records)!,
+                  ),
+                  SizedBox(height: 20.h),
+                ],
+                // Legend
+                _CalendarLegend(),
+                SizedBox(height: 20.h),
+                // Summary
                 _SectionHeader(
                   title: 'Summary',
                   icon: Icons.analytics_outlined,
                 ),
                 SizedBox(height: 12.h),
-                _SummaryGrid(summary: state.summary),
-                SizedBox(height: 20.h),
-                _SectionHeader(
-                  title: 'Attendance Records',
-                  icon: Icons.list_alt_rounded,
+                _SummaryGrid(
+                  counts: _computeMonthlyCounts(state.records, _selectedDate),
                 ),
-                SizedBox(height: 12.h),
-                _AttendanceList(records: state.records),
+                SizedBox(height: 20.h),
               ],
             ),
           );
@@ -68,8 +93,408 @@ class AttendancePage extends StatelessWidget {
     );
   }
 
-  void _onDateChanged(BuildContext context, DateTime from, DateTime to) {
-    context.read<AttendanceBloc>().add(AttendanceRangeChanged(from: from, to: to));
+  AttendanceRecord? _getSelectedDateRecord(List<AttendanceRecord> records) {
+    try {
+      return records.firstWhere(
+        (record) =>
+            DateFormatter.formatDate(record.date) ==
+            DateFormatter.formatDate(_selectedDate),
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  MonthlyStatusCounts _computeMonthlyCounts(
+    List<AttendanceRecord> records,
+    DateTime selectedDate,
+  ) {
+    int present = 0;
+    int late = 0;
+    int halfDay = 0;
+    int absent = 0;
+
+    for (final record in records) {
+      if (record.date.year != selectedDate.year ||
+          record.date.month != selectedDate.month) {
+        continue;
+      }
+
+      final status = _getStatus(record);
+      switch (status) {
+        case status_service.AttendanceDayStatus.present:
+          present++;
+          break;
+        case status_service.AttendanceDayStatus.late:
+          late++;
+          break;
+        case status_service.AttendanceDayStatus.halfDay:
+          halfDay++;
+          break;
+        case status_service.AttendanceDayStatus.absent:
+          absent++;
+          break;
+        default:
+          break;
+      }
+    }
+
+    return MonthlyStatusCounts(
+      present: present,
+      late: late,
+      halfDay: halfDay,
+      absent: absent,
+    );
+  }
+
+  status_service.AttendanceDayStatus _getStatus(AttendanceRecord record) {
+    if (record.isAbsent) {
+      return status_service.AttendanceDayStatus.absent;
+    }
+    final checkInDateTime = DateTime(
+      record.date.year,
+      record.date.month,
+      record.date.day,
+    ).add(record.timeIn);
+
+    return status_service.AttendanceStatusService.calculateStatus(
+      checkInTime: checkInDateTime,
+      isAbsent: record.isAbsent,
+      isLeave: false,
+    );
+  }
+}
+
+class _CalendarLegend extends StatelessWidget {
+  const _CalendarLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final legendItems = [
+      _LegendItem(
+        'Present',
+        Color(
+          status_service.AttendanceStatusService.getStatusColor(
+            status_service.AttendanceDayStatus.present,
+          ),
+        ),
+        status_service.AttendanceStatusService.getStatusIcon(
+          status_service.AttendanceDayStatus.present,
+        ),
+      ),
+      _LegendItem(
+        'Late',
+        Color(
+          status_service.AttendanceStatusService.getStatusColor(
+            status_service.AttendanceDayStatus.late,
+          ),
+        ),
+        status_service.AttendanceStatusService.getStatusIcon(
+          status_service.AttendanceDayStatus.late,
+        ),
+      ),
+      _LegendItem(
+        'Half Day',
+        Color(
+          status_service.AttendanceStatusService.getStatusColor(
+            status_service.AttendanceDayStatus.halfDay,
+          ),
+        ),
+        status_service.AttendanceStatusService.getStatusIcon(
+          status_service.AttendanceDayStatus.halfDay,
+        ),
+      ),
+      _LegendItem(
+        'On Leave',
+        Color(
+          status_service.AttendanceStatusService.getStatusColor(
+            status_service.AttendanceDayStatus.onLeave,
+          ),
+        ),
+        status_service.AttendanceStatusService.getStatusIcon(
+          status_service.AttendanceDayStatus.onLeave,
+        ),
+      ),
+      _LegendItem(
+        'Absent',
+        Color(
+          status_service.AttendanceStatusService.getStatusColor(
+            status_service.AttendanceDayStatus.absent,
+          ),
+        ),
+        status_service.AttendanceStatusService.getStatusIcon(
+          status_service.AttendanceDayStatus.absent,
+        ),
+      ),
+    ];
+
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade200,
+        ),
+      ),
+      child: Wrap(
+        spacing: 16.w,
+        runSpacing: 12.h,
+        children: legendItems
+            .map((item) => _buildLegendItem(item, isDark))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(_LegendItem item, bool isDark) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 24.w,
+          height: 24.w,
+          decoration: BoxDecoration(
+            color: item.color.withValues(alpha: 0.2),
+            shape: BoxShape.circle,
+            border: Border.all(color: item.color, width: 2),
+          ),
+          child: Center(
+            child: Text(
+              item.icon,
+              style: TextStyle(
+                color: item.color,
+                fontSize: 12.sp,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: 8.w),
+        Text(
+          item.label,
+          style: TextStyle(
+            fontSize: 12.sp,
+            color: isDark ? Colors.white70 : AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LegendItem {
+  final String label;
+  final Color color;
+  final String icon;
+
+  _LegendItem(this.label, this.color, this.icon);
+}
+
+class _AttendanceDetailsCard extends StatelessWidget {
+  const _AttendanceDetailsCard({required this.record});
+
+  final AttendanceRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Calculate status
+    final checkInDateTime = DateTime(
+      record.date.year,
+      record.date.month,
+      record.date.day,
+    ).add(record.timeIn);
+
+    final status = status_service.AttendanceStatusService.calculateStatus(
+      checkInTime: checkInDateTime,
+      isAbsent: record.isAbsent,
+    );
+
+    final statusColor = Color(
+      status_service.AttendanceStatusService.getStatusColor(status),
+    );
+    final statusName = status_service.AttendanceStatusService.getStatusName(
+      status,
+    );
+
+    return Container(
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+                child: Text(
+                  status_service.AttendanceStatusService.getStatusIcon(status),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormatter.formatDate(record.date),
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 4.h),
+                    Text(
+                      statusName,
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 16.h),
+          Row(
+            children: [
+              _TimeDetail(
+                icon: Icons.login_rounded,
+                label: 'Check In',
+                value: DateFormatter.formatHours(record.timeIn),
+                color: AppColors.success,
+                isDark: isDark,
+              ),
+              SizedBox(width: 16.w),
+              _TimeDetail(
+                icon: Icons.logout_rounded,
+                label: 'Check Out',
+                value: record.timeOut.inHours > 0
+                    ? DateFormatter.formatHours(record.timeOut)
+                    : '--',
+                color: AppColors.error,
+                isDark: isDark,
+              ),
+              SizedBox(width: 16.w),
+              _TimeDetail(
+                icon: Icons.timer_outlined,
+                label: 'Hours',
+                value: DateFormatter.formatHours(record.workHours),
+                color: theme.primaryColor,
+                isDark: isDark,
+              ),
+            ],
+          ),
+          if (record.remarks.isNotEmpty) ...[
+            SizedBox(height: 12.h),
+            Container(
+              padding: EdgeInsets.all(12.w),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.03)
+                    : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8.r),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.note_outlined,
+                    size: 16.sp,
+                    color: isDark ? Colors.white38 : Colors.grey.shade500,
+                  ),
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: Text(
+                      record.remarks,
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: isDark
+                            ? Colors.white54
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeDetail extends StatelessWidget {
+  const _TimeDetail({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.isDark,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14.sp, color: color),
+              SizedBox(width: 4.w),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.sp,
+                  color: isDark ? Colors.white38 : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 4.h),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -108,195 +533,10 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _DateRangePicker extends StatelessWidget {
-  const _DateRangePicker({
-    required this.fromDate,
-    required this.toDate,
-    required this.onFromDateSelected,
-    required this.onToDateSelected,
-  });
-
-  final DateTime fromDate;
-  final DateTime toDate;
-  final ValueChanged<DateTime> onFromDateSelected;
-  final ValueChanged<DateTime> onToDateSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(
-          color: isDark ? Colors.white12 : Colors.grey.shade200,
-        ),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _DateField(
-              label: 'From',
-              date: fromDate,
-              onDateSelected: onFromDateSelected,
-            ),
-          ),
-          Container(
-            margin: EdgeInsets.symmetric(horizontal: 12.w),
-            child: Icon(
-              Icons.arrow_forward_rounded,
-              color: isDark ? Colors.white38 : Colors.grey.shade400,
-              size: 20.sp,
-            ),
-          ),
-          Expanded(
-            child: _DateField(
-              label: 'To',
-              date: toDate,
-              onDateSelected: onToDateSelected,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DateField extends StatelessWidget {
-  const _DateField({
-    required this.label,
-    required this.date,
-    required this.onDateSelected,
-  });
-
-  final String label;
-  final DateTime date;
-  final ValueChanged<DateTime> onDateSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: date,
-          firstDate: DateTime(2020),
-          lastDate: DateTime(2100),
-        );
-        if (picked != null) {
-          onDateSelected(picked);
-        }
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11.sp,
-                color: isDark ? Colors.white54 : AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            SizedBox(height: 4.h),
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 14.sp,
-                  color: theme.primaryColor,
-                ),
-                SizedBox(width: 6.w),
-                Expanded(
-                  child: Text(
-                    DateFormatter.formatDate(date),
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : AppColors.textPrimary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadButton extends StatelessWidget {
-  const _LoadButton({required this.isLoading, required this.onPressed});
-
-  final bool isLoading;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: isLoading ? null : onPressed,
-        icon: isLoading
-            ? SizedBox(
-                width: 18.w,
-                height: 18.w,
-                child: const CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
-                ),
-              )
-            : Icon(Icons.search_rounded, size: 18.sp),
-        label: Text(
-          isLoading ? 'Loading...' : 'Load Attendance',
-          style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: theme.primaryColor,
-          foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(vertical: 14.h),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.r),
-          ),
-          elevation: 0,
-        ),
-      ),
-    );
-  }
-}
-
 class _SummaryGrid extends StatelessWidget {
-  const _SummaryGrid({required this.summary});
+  const _SummaryGrid({required this.counts});
 
-  final AttendanceSummary summary;
+  final MonthlyStatusCounts counts;
 
   @override
   Widget build(BuildContext context) {
@@ -304,26 +544,20 @@ class _SummaryGrid extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final entries = [
-      _SummaryItem('CL', summary.casualLeave, AppColors.primary),
-      _SummaryItem('EL', summary.earnedLeave, AppColors.success),
-      _SummaryItem('ML', summary.medicalLeave, AppColors.warning),
-      _SummaryItem('CP', summary.compensatoryLeave, AppColors.info),
-      _SummaryItem('SL', summary.sickLeave, AppColors.secondary),
-      _SummaryItem('LWP', summary.lossOfPay, AppColors.error),
-      _SummaryItem('ABS', summary.absent, Colors.red),
-      _SummaryItem('OD', summary.outdoorDuty, AppColors.accent),
-      _SummaryItem('Extra', summary.approvedExtraWork, Colors.purple),
-      _SummaryItem('Late', summary.lateCount, Colors.orange),
+      _SummaryItem('Present', counts.present, const Color(0xFF4CAF50)),
+      _SummaryItem('Absent', counts.absent, const Color(0xFFF44336)),
+      _SummaryItem('Half Day', counts.halfDay, const Color(0xFFFF9800)),
+      _SummaryItem('Late', counts.late, const Color(0xFFF44336)),
     ];
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        childAspectRatio: 0.9,
-        mainAxisSpacing: 10.h,
-        crossAxisSpacing: 10.w,
+        crossAxisCount: 2,
+        childAspectRatio: 2.6,
+        mainAxisSpacing: 12.h,
+        crossAxisSpacing: 12.w,
       ),
       itemCount: entries.length,
       itemBuilder: (context, index) {
@@ -375,272 +609,127 @@ class _SummaryItem {
   _SummaryItem(this.label, this.value, this.color);
 }
 
-class _AttendanceList extends StatelessWidget {
-  const _AttendanceList({required this.records});
+class MonthlyStatusCounts {
+  const MonthlyStatusCounts({
+    required this.present,
+    required this.late,
+    required this.halfDay,
+    required this.absent,
+  });
 
-  final List<AttendanceRecord> records;
+  final int present;
+  final int late;
+  final int halfDay;
+  final int absent;
+}
+
+class _BiometricAttendanceButton extends StatelessWidget {
+  const _BiometricAttendanceButton();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
-    if (records.isEmpty) {
-      return Container(
-        padding: EdgeInsets.all(40.w),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(
-            color: isDark ? Colors.white12 : Colors.grey.shade200,
-          ),
-        ),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.event_busy_rounded,
-                size: 48.sp,
-                color: isDark ? Colors.white24 : Colors.grey.shade400,
-              ),
-              SizedBox(height: 12.h),
-              Text(
-                'No attendance data found',
-                style: TextStyle(
-                  fontSize: 14.sp,
-                  color: isDark ? Colors.white54 : AppColors.textSecondary,
-                ),
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, authState) {
+        final employeeId = authState.user?.id ?? 'unknown';
+
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.primaryColor,
+                theme.primaryColor.withValues(alpha: 0.8),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16.r),
+            boxShadow: [
+              BoxShadow(
+                color: theme.primaryColor.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: records.length,
-      separatorBuilder: (_, __) => SizedBox(height: 10.h),
-      itemBuilder: (context, index) {
-        return _AttendanceCard(record: records[index]);
-      },
-    );
-  }
-}
-
-class _AttendanceCard extends StatelessWidget {
-  const _AttendanceCard({required this.record});
-
-  final AttendanceRecord record;
-
-  Color _getStatusColor() {
-    if (record.isAbsent) return Colors.red;
-    if (record.workHours < const Duration(hours: 8, minutes: 30)) {
-      return Colors.orange;
-    }
-    if (record.isLate) return Colors.amber;
-    return AppColors.success;
-  }
-
-  IconData _getStatusIcon() {
-    if (record.isAbsent) return Icons.cancel_rounded;
-    if (record.workHours < const Duration(hours: 8, minutes: 30)) {
-      return Icons.warning_rounded;
-    }
-    if (record.isLate) return Icons.schedule_rounded;
-    return Icons.check_circle_rounded;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final statusColor = _getStatusColor();
-
-    return Container(
-      padding: EdgeInsets.all(14.w),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(14.r),
-        border: Border.all(
-          color: isDark ? Colors.white12 : Colors.grey.shade200,
-        ),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(8.w),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10.r),
-                ),
-                child: Icon(_getStatusIcon(), color: statusColor, size: 20.sp),
-              ),
-              SizedBox(width: 12.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BlocProvider(
+                      create: (_) => BiometricAttendanceBloc(
+                        biometricService: getIt(),
+                        geocodingService: getIt(),
+                        attendanceFileService: getIt(),
+                        validationService: getIt(),
+                        appConfig: getIt(),
+                        employeeId: employeeId,
+                        locationService: getIt(),
+                        authRepository: getIt(),
+                        markBiometricAttendanceUseCase: getIt(),
+                      )..add(const BiometricAttendanceInitialized()),
+                      child: const BiometricAttendancePage(),
+                    ),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16.r),
+              child: Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Row(
                   children: [
-                    Text(
-                      DateFormatter.formatDate(record.date),
-                      style: TextStyle(
-                        fontSize: 15.sp,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : AppColors.textPrimary,
+                    Container(
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      child: Icon(
+                        Icons.fingerprint_rounded,
+                        color: Colors.white,
+                        size: 28.sp,
                       ),
                     ),
-                    SizedBox(height: 2.h),
-                    Text(
-                      'Shift: ${record.shift}',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: isDark ? Colors.white54 : AppColors.textSecondary,
+                    SizedBox(width: 16.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mark Attendance',
+                            style: TextStyle(
+                              fontSize: 18.sp,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 4.h),
+                          Text(
+                            'Use biometric authentication',
+                            style: TextStyle(
+                              fontSize: 13.sp,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white,
+                      size: 20.sp,
                     ),
                   ],
                 ),
               ),
-              if (record.isLate)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8.r),
-                  ),
-                  child: Text(
-                    'LATE',
-                    style: TextStyle(
-                      fontSize: 10.sp,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          SizedBox(height: 12.h),
-          // Time Info Row
-          Row(
-            children: [
-              _TimeInfo(
-                icon: Icons.login_rounded,
-                label: 'In',
-                value: DateFormatter.formatHours(record.timeIn),
-                color: AppColors.success,
-              ),
-              SizedBox(width: 16.w),
-              _TimeInfo(
-                icon: Icons.logout_rounded,
-                label: 'Out',
-                value: DateFormatter.formatHours(record.timeOut),
-                color: AppColors.error,
-              ),
-              SizedBox(width: 16.w),
-              _TimeInfo(
-                icon: Icons.timer_outlined,
-                label: 'Hours',
-                value: DateFormatter.formatHours(record.workHours),
-                color: theme.primaryColor,
-              ),
-            ],
-          ),
-          // Remarks
-          if (record.remarks.isNotEmpty) ...[
-            SizedBox(height: 10.h),
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(10.w),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.03)
-                    : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8.r),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.note_outlined,
-                    size: 14.sp,
-                    color: isDark ? Colors.white38 : Colors.grey.shade500,
-                  ),
-                  SizedBox(width: 8.w),
-                  Expanded(
-                    child: Text(
-                      record.remarks,
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: isDark ? Colors.white54 : AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TimeInfo extends StatelessWidget {
-  const _TimeInfo({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Expanded(
-      child: Row(
-        children: [
-          Icon(icon, size: 16.sp, color: color),
-          SizedBox(width: 6.w),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10.sp,
-                  color: isDark ? Colors.white38 : AppColors.textSecondary,
-                ),
-              ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 13.sp,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : AppColors.textPrimary,
-                ),
-              ),
-            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

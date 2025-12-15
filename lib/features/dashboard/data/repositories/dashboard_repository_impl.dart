@@ -1,24 +1,23 @@
-import '../../../../data/datasources/lms_local_data_source.dart';
-import '../../../../data/datasources/lms_remote_data_source.dart';
 import '../../domain/entities/dashboard_summary.dart';
 import '../../domain/repositories/dashboard_repository.dart';
+import '../datasources/dashboard_remote_data_source.dart';
 
 class DashboardRepositoryImpl implements DashboardRepository {
-  DashboardRepositoryImpl(this._remoteDataSource, this._localDataSource);
+  DashboardRepositoryImpl(this._remoteDataSource, this._empPkProvider);
 
-  final LmsRemoteDataSource _remoteDataSource;
-  final LmsLocalDataSource _localDataSource;
+  final DashboardRemoteDataSource _remoteDataSource;
+  final Future<String?> Function() _empPkProvider;
+
+  DashboardSummary? _cache;
 
   @override
-  DashboardSummary? cachedDashboard() {
-    return _localDataSource.dashboard();
-  }
+  DashboardSummary? cachedDashboard() => _cache;
 
   @override
   Future<DashboardSummary> fetchDashboard() async {
-    final summary = await _remoteDataSource.dashboard();
-    await _localDataSource.cacheDashboard(summary);
+    final empPk = await _empPkProvider() ?? '';
+    final summary = await _remoteDataSource.fetchDashboard(empPk);
+    _cache = summary;
     return summary;
   }
 }
-

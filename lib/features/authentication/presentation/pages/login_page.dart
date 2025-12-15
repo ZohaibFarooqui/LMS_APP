@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/biometric_service.dart';
+import '../../../../di/service_locator.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/login_form/login_form_bloc.dart';
 import '../widgets/animated_background.dart';
@@ -31,6 +35,32 @@ class LoginPage extends StatelessWidget {
   }
 }
 
+/// Input formatter that ensures the phone number starts with '3'.
+class _StartWithThreeFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final newText = newValue.text;
+
+    if (newText.isEmpty) return newValue;
+
+    // If user is typing the first character, only allow '3'
+    if (newText.length == 1) {
+      if (newText[0] != '3') {
+        return oldValue;
+      }
+      return newValue;
+    }
+
+    // For longer input ensure the first character remains '3'
+    if (newText[0] != '3') return oldValue;
+
+    return newValue;
+  }
+}
+
 class _LoginPageContent extends StatefulWidget {
   const _LoginPageContent();
 
@@ -41,10 +71,14 @@ class _LoginPageContent extends StatefulWidget {
 class _LoginPageContentState extends State<_LoginPageContent> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _biometricAvailable = false;
 
   @override
   void initState() {
     super.initState();
+    // Check biometric availability
+    _checkBiometricAvailability();
+
     // Initialize form with remembered username if available
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authState = context.read<AuthBloc>().state;
@@ -57,6 +91,16 @@ class _LoginPageContentState extends State<_LoginPageContent> {
         );
       }
     });
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    final biometricService = getIt<BiometricService>();
+    final isAvailable = await biometricService.isBiometricAvailable();
+    if (mounted) {
+      setState(() {
+        _biometricAvailable = isAvailable;
+      });
+    }
   }
 
   @override
@@ -288,13 +332,21 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                 SlideFadeAnimation(
                   delay: const Duration(milliseconds: 500),
                   child: LoginTextField(
-                    hintText: 'Username / Employee Code',
+                    hintText: 'Phone Number',
                     controller: _usernameController,
                     prefixIcon: Icons.person_outline_rounded,
-                    keyboardType: TextInputType.text,
+                    // Use number keyboard and restrict input via formatters
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(10),
+                      _StartWithThreeFormatter(),
+                    ],
                     textInputAction: TextInputAction.next,
+
                     enabled: !isLoading,
                     errorText: formState.usernameError,
+
                     onChanged: (value) {
                       context.read<LoginFormBloc>().add(
                         LoginUsernameChanged(value),
@@ -314,6 +366,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                     prefixIcon: Icons.lock_outline_rounded,
                     obscureText: !formState.isPasswordVisible,
                     textInputAction: TextInputAction.done,
+                    keyboardType: TextInputType.text,
                     enabled: !isLoading,
                     errorText: formState.passwordError,
                     onChanged: (value) {
@@ -372,7 +425,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                                     : Colors.grey.shade400,
                                 width: 1.5,
                               ),
-                              activeColor: theme.primaryColor,
+                              activeColor: isDark ? AppColors.secondary : theme.primaryColor,
                             ),
                           ),
                           SizedBox(width: 6.w),
@@ -416,7 +469,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                           'Forgot Password?',
                           style: TextStyle(
                             fontSize: 12.sp,
-                            color: theme.primaryColor,
+                            color: isDark ? AppColors.secondary : theme.primaryColor,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -440,12 +493,17 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                   ),
                 ),
 
-                // Biometric Login Option
-                if (authState.biometricEnabled) ...[
+                // Biometric Login Option - Show if biometric is available
+                if (_biometricAvailable) ...[
                   SizedBox(height: isSmallScreen ? 12.h : 16.h),
                   SlideFadeAnimation(
                     delay: const Duration(milliseconds: 700),
-                    child: _buildBiometricButton(context, theme, isLoading),
+                    child: _buildBiometricButton(
+                      context,
+                      theme,
+                      isLoading,
+                      authState,
+                    ),
                   ),
                 ],
               ],
@@ -460,12 +518,15 @@ class _LoginPageContentState extends State<_LoginPageContent> {
     BuildContext context,
     ThemeData theme,
     bool isLoading,
+    AuthState authState,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? AppColors.secondary : theme.primaryColor;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.primaryColor.withValues(alpha: 0.1),
+            accentColor.withValues(alpha: 0.1),
             const Color(0xFF4338CA).withValues(alpha: 0.1),
           ],
           begin: Alignment.topLeft,
@@ -473,7 +534,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
         ),
         borderRadius: BorderRadius.circular(12.r),
         border: Border.all(
-          color: theme.primaryColor.withValues(alpha: 0.3),
+          color: accentColor.withValues(alpha: 0.3),
           width: 1.5,
         ),
       ),
@@ -495,7 +556,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                   padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [theme.primaryColor, const Color(0xFF4338CA)],
+                      colors: [accentColor, const Color(0xFF4338CA)],
                     ),
                     shape: BoxShape.circle,
                   ),
@@ -514,14 +575,14 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                       style: TextStyle(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.w600,
-                        color: theme.primaryColor,
+                        color: accentColor,
                       ),
                     ),
                     Text(
                       'Use fingerprint or Face ID',
                       style: TextStyle(
                         fontSize: 11.sp,
-                        color: theme.primaryColor.withValues(alpha: 0.7),
+                        color: accentColor.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -530,7 +591,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                 Icon(
                   Icons.arrow_forward_ios_rounded,
                   size: 16.sp,
-                  color: theme.primaryColor,
+                  color: accentColor,
                 ),
               ],
             ),
@@ -547,7 +608,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '© 2024 YDC. All rights reserved.',
+          '© ${DateTime.now().year} YDC. All rights reserved.',
           style: TextStyle(
             fontSize: 11.sp,
             color: isDark ? Colors.white38 : Colors.white70,

@@ -1,6 +1,6 @@
 part of 'profile_bloc.dart';
 
-enum ProfileStatus { initial, loading, success, failure, updating }
+enum ProfileStatus { initial, loading, success, failure }
 
 class ProfileState extends Equatable {
   const ProfileState({
@@ -10,12 +10,12 @@ class ProfileState extends Equatable {
   });
 
   final ProfileStatus status;
-  final ProfileEntity? profile;
+  final EnhancedProfileEntity? profile;
   final String? errorMessage;
 
   ProfileState copyWith({
     ProfileStatus? status,
-    ProfileEntity? profile,
+    EnhancedProfileEntity? profile,
     String? errorMessage,
   }) {
     return ProfileState(
@@ -28,4 +28,3 @@ class ProfileState extends Equatable {
   @override
   List<Object?> get props => [status, profile, errorMessage];
 }
-

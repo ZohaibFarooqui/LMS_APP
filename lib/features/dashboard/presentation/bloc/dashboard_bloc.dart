@@ -8,25 +8,28 @@ part 'dashboard_event.dart';
 part 'dashboard_state.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
-  DashboardBloc(this._useCase) : super(const DashboardState()) {
+  DashboardBloc(this._getDashboardSummaryUseCase)
+    : super(const DashboardState()) {
     on<DashboardRequested>(_onRequested);
   }
 
-  final GetDashboardSummaryUseCase _useCase;
+  final GetDashboardSummaryUseCase _getDashboardSummaryUseCase;
 
-  Future<void> _onRequested(DashboardRequested event, Emitter<DashboardState> emit) async {
-    final cached = _useCase.cached();
-    if (cached != null) {
-      emit(state.copyWith(status: DashboardStatus.success, summary: cached));
-    } else {
-      emit(state.copyWith(status: DashboardStatus.loading));
-    }
+  Future<void> _onRequested(
+    DashboardRequested event,
+    Emitter<DashboardState> emit,
+  ) async {
+    emit(state.copyWith(status: DashboardStatus.loading, errorMessage: null));
     try {
-      final summary = await _useCase();
+      final summary = await _getDashboardSummaryUseCase();
       emit(state.copyWith(status: DashboardStatus.success, summary: summary));
-    } catch (error) {
-      emit(state.copyWith(status: DashboardStatus.failure, errorMessage: error.toString()));
+    } catch (e) {
+      emit(
+        state.copyWith(
+          status: DashboardStatus.failure,
+          errorMessage: e.toString(),
+        ),
+      );
     }
   }
 }
-

@@ -54,7 +54,8 @@ class NotificationPage extends StatelessWidget {
         ],
       ),
       body: BlocProvider(
-        create: (_) => getIt<NotificationBloc>()..add(const NotificationsRequested()),
+        create: (_) =>
+            getIt<NotificationBloc>()..add(const NotificationsRequested()),
         child: const _NotificationContent(),
       ),
     );
@@ -126,7 +127,10 @@ class NotificationDrawer extends StatelessWidget {
               children: [
                 // Header
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 20.w,
+                    vertical: 16.h,
+                  ),
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
@@ -139,12 +143,13 @@ class NotificationDrawer extends StatelessWidget {
                       Container(
                         padding: EdgeInsets.all(10.w),
                         decoration: BoxDecoration(
-                          color: theme.primaryColor.withValues(alpha: 0.1),
+                          color: (isDark ? AppColors.secondary : theme.primaryColor)
+                              .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                         child: Icon(
                           Icons.notifications_rounded,
-                          color: theme.primaryColor,
+                          color: isDark ? AppColors.secondary : theme.primaryColor,
                           size: 22.sp,
                         ),
                       ),
@@ -158,14 +163,18 @@ class NotificationDrawer extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 18.sp,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : AppColors.textPrimary,
+                                color: isDark
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
                               ),
                             ),
                             Text(
                               'Stay updated',
                               style: TextStyle(
                                 fontSize: 12.sp,
-                                color: isDark ? Colors.white54 : AppColors.textSecondary,
+                                color: isDark
+                                    ? Colors.white54
+                                    : AppColors.textSecondary,
                               ),
                             ),
                           ],
@@ -185,7 +194,8 @@ class NotificationDrawer extends StatelessWidget {
                 Expanded(
                   child: BlocProvider(
                     create: (_) =>
-                        getIt<NotificationBloc>()..add(const NotificationsRequested()),
+                        getIt<NotificationBloc>()
+                          ..add(const NotificationsRequested()),
                     child: const _NotificationContent(),
                   ),
                 ),
@@ -228,7 +238,7 @@ class _NotificationContent extends StatelessWidget {
                   child: Icon(
                     Icons.notifications_off_outlined,
                     size: 48.sp,
-                    color: isDark ? Colors.white38 : Colors.grey.shade400,
+                    color: isDark ? AppColors.secondary.withValues(alpha: 0.6) : Colors.grey.shade400,
                   ),
                 ),
                 SizedBox(height: 20.h),
@@ -263,8 +273,8 @@ class _NotificationContent extends StatelessWidget {
               notification: notification,
               onTap: () {
                 context.read<NotificationBloc>().add(
-                      NotificationRead(notification.id),
-                    );
+                  NotificationMarkedRead(notification.id),
+                );
               },
             );
           },
@@ -275,10 +285,7 @@ class _NotificationContent extends StatelessWidget {
 }
 
 class _NotificationCard extends StatelessWidget {
-  const _NotificationCard({
-    required this.notification,
-    required this.onTap,
-  });
+  const _NotificationCard({required this.notification, required this.onTap});
 
   final NotificationMessage notification;
   final VoidCallback onTap;
@@ -315,8 +322,8 @@ class _NotificationCard extends StatelessWidget {
           color: notification.isRead
               ? (isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white)
               : (isDark
-                  ? theme.primaryColor.withValues(alpha: 0.1)
-                  : theme.primaryColor.withValues(alpha: 0.05)),
+                    ? theme.primaryColor.withValues(alpha: 0.1)
+                    : theme.primaryColor.withValues(alpha: 0.05)),
           borderRadius: BorderRadius.circular(16.r),
           border: Border.all(
             color: notification.isRead
@@ -333,11 +340,7 @@ class _NotificationCard extends StatelessWidget {
                 color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12.r),
               ),
-              child: Icon(
-                _getIcon(),
-                color: iconColor,
-                size: 20.sp,
-              ),
+              child: Icon(_getIcon(), color: iconColor, size: 20.sp),
             ),
             SizedBox(width: 12.w),
             Expanded(
@@ -354,16 +357,18 @@ class _NotificationCard extends StatelessWidget {
                             fontWeight: notification.isRead
                                 ? FontWeight.w500
                                 : FontWeight.w600,
-                            color: isDark ? Colors.white : AppColors.textPrimary,
+                            color: isDark
+                                ? Colors.white
+                                : AppColors.textPrimary,
                           ),
                         ),
                       ),
-                      if (!notification.isRead)
+                        if (!notification.isRead)
                         Container(
                           width: 8.w,
                           height: 8.w,
                           decoration: BoxDecoration(
-                            color: theme.primaryColor,
+                            color: isDark ? AppColors.secondary : theme.primaryColor,
                             shape: BoxShape.circle,
                           ),
                         ),

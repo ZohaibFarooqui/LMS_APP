@@ -7,6 +7,9 @@ class LocalStorageService {
 
   final SharedPreferences _preferences;
 
+  /// Get the underlying SharedPreferences instance
+  SharedPreferences get prefs => _preferences;
+
   Future<void> writeString(String key, String value) async {
     await _preferences.setString(key, value);
   }

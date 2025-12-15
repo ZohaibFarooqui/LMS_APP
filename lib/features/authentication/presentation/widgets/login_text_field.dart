@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// A beautiful, animated text field for the login screen
-/// 
+///
 /// Features:
 /// - Glassmorphism style
 /// - Animated focus state
@@ -18,6 +19,7 @@ class LoginTextField extends StatefulWidget {
     this.suffixIcon,
     this.obscureText = false,
     this.keyboardType,
+    this.inputFormatters,
     this.textInputAction,
     this.onChanged,
     this.onSubmitted,
@@ -32,6 +34,7 @@ class LoginTextField extends StatefulWidget {
   final Widget? suffixIcon;
   final bool obscureText;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
@@ -92,18 +95,18 @@ class _LoginTextFieldState extends State<LoginTextField>
     final fillColor = isDark
         ? Colors.white.withValues(alpha: 0.08)
         : Colors.white.withValues(alpha: 0.9);
-    
+
     final borderColor = hasError
         ? theme.colorScheme.error
         : _isFocused
-            ? theme.primaryColor
-            : (isDark ? Colors.white24 : Colors.grey.shade300);
-    
+        ? theme.primaryColor
+        : (isDark ? Colors.white24 : Colors.grey.shade300);
+
     final iconColor = hasError
         ? theme.colorScheme.error
         : _isFocused
-            ? theme.primaryColor
-            : (isDark ? Colors.white54 : Colors.grey.shade600);
+        ? theme.primaryColor
+        : (isDark ? Colors.white54 : Colors.grey.shade600);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,6 +137,7 @@ class _LoginTextFieldState extends State<LoginTextField>
             focusNode: _focusNode,
             obscureText: widget.obscureText,
             keyboardType: widget.keyboardType,
+            inputFormatters: widget.inputFormatters,
             textInputAction: widget.textInputAction,
             onChanged: widget.onChanged,
             onSubmitted: widget.onSubmitted,
@@ -193,10 +197,7 @@ class _LoginTextFieldState extends State<LoginTextField>
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16.r),
-                borderSide: BorderSide(
-                  color: theme.primaryColor,
-                  width: 2,
-                ),
+                borderSide: BorderSide(color: theme.primaryColor, width: 2),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16.r),
@@ -249,4 +250,3 @@ class _LoginTextFieldState extends State<LoginTextField>
     );
   }
 }
-

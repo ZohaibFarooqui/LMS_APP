@@ -26,20 +26,54 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   @override
   Future<void> cacheUser(UserModel user) async {
     await _storage.writeJson(_userKey, user.toJson());
-    await _secureStorage.write('token', 'mock-jwt-token');
+    await _secureStorage.write('emp_pk', user.id);
   }
 
   @override
   Future<UserModel?> getCachedUser() async {
+    // First check if cached user exists
     final data = _storage.readJson(_userKey);
-    if (data == null) return null;
-    return UserModel.fromJson(data);
+    if (data != null) {
+      return UserModel.fromJson(data);
+    }
+
+    // If no cached user, check if emp_pk exists (user was logged in before)
+    final empPk = await _secureStorage.read('emp_pk');
+    if (empPk == null || empPk.isEmpty) {
+      return null;
+    }
+
+    // Try to restore user from profile cache if available
+    // Profile is cached with key 'profile_cache' in LmsLocalDataSource
+    final profileData = _storage.readJson('profile_cache');
+    if (profileData != null) {
+      try {
+        // Create user model from profile data
+        final user = UserModel(
+          id: empPk,
+          name: profileData['name']?.toString() ?? '',
+          employeeCode: profileData['employeeCode']?.toString() ?? '',
+          department: profileData['department']?.toString() ?? '',
+          designation: profileData['designation']?.toString() ?? '',
+          location: profileData['location']?.toString() ?? '',
+          cardNumber: profileData['cardNumber']?.toString() ?? '',
+        );
+        // Cache the restored user for future use
+        await cacheUser(user);
+        return user;
+      } catch (e) {
+        // If profile parsing fails, return null
+        return null;
+      }
+    }
+
+    return null;
   }
 
   @override
   Future<void> clear() async {
     await _storage.remove(_userKey);
-    await _secureStorage.delete('token');
+    await _secureStorage.delete('emp_pk');
   }
 
   @override
@@ -66,4 +100,3 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     return value == 'true';
   }
 }
-

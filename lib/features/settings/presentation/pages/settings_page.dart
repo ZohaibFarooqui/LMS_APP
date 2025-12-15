@@ -324,12 +324,13 @@ class _SettingsPageContent extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: 12.h),
           decoration: BoxDecoration(
             color: isSelected
-                ? theme.primaryColor.withValues(alpha: isDark ? 0.3 : 0.1)
+                ? (isDark ? AppColors.secondary : theme.primaryColor)
+                    .withValues(alpha: isDark ? 0.3 : 0.1)
                 : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100),
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(
               color: isSelected
-                  ? theme.primaryColor
+                  ? (isDark ? AppColors.secondary : theme.primaryColor)
                   : (isDark ? Colors.white12 : Colors.grey.shade300),
               width: isSelected ? 2 : 1,
             ),
@@ -340,7 +341,7 @@ class _SettingsPageContent extends StatelessWidget {
                 icon,
                 size: 24.sp,
                 color: isSelected
-                    ? theme.primaryColor
+                    ? (isDark ? AppColors.secondary : theme.primaryColor)
                     : (isDark ? Colors.white54 : Colors.grey.shade600),
               ),
               SizedBox(height: 6.h),
@@ -350,7 +351,7 @@ class _SettingsPageContent extends StatelessWidget {
                   fontSize: 12.sp,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: isSelected
-                      ? theme.primaryColor
+                      ? (isDark ? AppColors.secondary : theme.primaryColor)
                       : (isDark ? Colors.white70 : Colors.grey.shade700),
                 ),
               ),
@@ -408,7 +409,7 @@ class _SettingsPageContent extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: theme.primaryColor,
+            activeColor: isDark ? AppColors.secondary : theme.primaryColor,
           ),
         ],
       ),

@@ -5,7 +5,7 @@ import '../../features/dashboard/domain/entities/dashboard_summary.dart';
 import '../../features/leaves/domain/entities/leave_balance.dart';
 import '../../features/leaves/domain/entities/leave_request.dart';
 import '../../features/notifications/domain/entities/notification_message.dart';
-import '../../features/profile/domain/entities/profile_entity.dart';
+import '../../features/profile/domain/entities/enhanced_profile_entity.dart';
 
 class LmsLocalDataSource {
   LmsLocalDataSource(this._storage);
@@ -30,7 +30,13 @@ class LmsLocalDataSource {
       'location': summary.location,
       'cardNumber': summary.cardNumber,
       'balances': summary.balances
-          .map((balance) => {'code': balance.code, 'name': balance.name, 'balance': balance.balance})
+          .map(
+            (balance) => {
+              'code': balance.code,
+              'name': balance.name,
+              'balance': balance.balance,
+            },
+          )
           .toList(),
     });
   }
@@ -59,40 +65,44 @@ class LmsLocalDataSource {
   }
 
   Future<void> cacheBalances(List<LeaveBalance> balances) async {
-    await _storage.writeJson(
-      _balancesKey,
-      {'items': balances.map((e) => {'code': e.code, 'name': e.name, 'balance': e.balance}).toList()},
-    );
+    await _storage.writeJson(_balancesKey, {
+      'items': balances
+          .map((e) => {'code': e.code, 'name': e.name, 'balance': e.balance})
+          .toList(),
+    });
   }
 
   List<LeaveBalance>? balances() {
     final data = _storage.readJson(_balancesKey);
     if (data == null) return null;
     return (data['items'] as List<dynamic>)
-        .map((e) => LeaveBalance(code: e['code'] as String, name: e['name'] as String, balance: e['balance'] as int))
+        .map(
+          (e) => LeaveBalance(
+            code: e['code'] as String,
+            name: e['name'] as String,
+            balance: e['balance'] as int,
+          ),
+        )
         .toList();
   }
 
   Future<void> cacheLeaveRequests(List<LeaveRequest> requests) async {
-    await _storage.writeJson(
-      _requestsKey,
-      {
-        'items': requests
-            .map(
-              (e) => {
-                'id': e.id,
-                'type': e.type,
-                'from': e.fromDate.toIso8601String(),
-                'to': e.toDate.toIso8601String(),
-                'status': e.status.name,
-                'reason': e.reason,
-                'halfDay': e.halfDay,
-                'approverComment': e.approverComment,
-              },
-            )
-            .toList(),
-      },
-    );
+    await _storage.writeJson(_requestsKey, {
+      'items': requests
+          .map(
+            (e) => {
+              'id': e.id,
+              'type': e.type,
+              'from': e.fromDate.toIso8601String(),
+              'to': e.toDate.toIso8601String(),
+              'status': e.status.name,
+              'reason': e.reason,
+              'halfDay': e.halfDay,
+              'approverComment': e.approverComment,
+            },
+          )
+          .toList(),
+    });
   }
 
   List<LeaveRequest>? leaveRequests() {
@@ -105,7 +115,9 @@ class LmsLocalDataSource {
             type: e['type'] as String,
             fromDate: DateTime.parse(e['from'] as String),
             toDate: DateTime.parse(e['to'] as String),
-            status: LeaveStatus.values.firstWhere((status) => status.name == e['status']),
+            status: LeaveStatus.values.firstWhere(
+              (status) => status.name == e['status'],
+            ),
             reason: e['reason'] as String,
             halfDay: e['halfDay'] as bool,
             approverComment: e['approverComment'] as String?,
@@ -114,60 +126,64 @@ class LmsLocalDataSource {
         .toList();
   }
 
-  Future<void> cacheProfile(ProfileEntity profile) async {
+  Future<void> cacheProfile(EnhancedProfileEntity profile) async {
     await _storage.writeJson(_profileKey, {
       'name': profile.name,
       'employeeCode': profile.employeeCode,
       'cadre': profile.cadre,
       'department': profile.department,
       'designation': profile.designation,
-      'joiningDate': profile.joiningDate,
+      'joiningDate': profile.joiningDate.toIso8601String(),
       'location': profile.location,
       'cardNumber': profile.cardNumber,
       'email': profile.email,
       'phoneNumber': profile.phoneNumber,
+      'gender': profile.gender,
+      'branch': profile.branch,
+      'dateOfBirth': profile.dateOfBirth.toIso8601String(),
     });
   }
 
-  ProfileEntity? profile() {
+  EnhancedProfileEntity? profile() {
     final data = _storage.readJson(_profileKey);
     if (data == null) return null;
-    return ProfileEntity(
-      name: data['name'] as String,
+    return EnhancedProfileEntity(
+      id: data['employeeCode'] as String,
       employeeCode: data['employeeCode'] as String,
-      cadre: data['cadre'] as String,
-      department: data['department'] as String,
-      designation: data['designation'] as String,
-      joiningDate: data['joiningDate'] as String,
-      location: data['location'] as String,
-      cardNumber: data['cardNumber'] as String,
+      name: data['name'] as String,
       email: data['email'] as String,
       phoneNumber: data['phoneNumber'] as String,
+      gender: data['gender'] as String? ?? 'M',
+      dateOfBirth: DateTime.parse(data['dateOfBirth'] as String),
+      joiningDate: DateTime.parse(data['joiningDate'] as String),
+      department: data['department'] as String,
+      designation: data['designation'] as String,
+      cadre: data['cadre'] as String? ?? '',
+      location: data['location'] as String? ?? '',
+      branch: data['branch'] as String? ?? '',
+      cardNumber: data['cardNumber'] as String? ?? '',
     );
   }
 
   Future<void> cacheAttendance(List<AttendanceRecord> records) async {
-    await _storage.writeJson(
-      _attendanceKey,
-      {
-        'items': records
-            .map(
-              (e) => {
-                'date': e.date.toIso8601String(),
-                'shift': e.shift,
-                'day': e.day,
-                'timeIn': e.timeIn.inMinutes,
-                'timeOut': e.timeOut.inMinutes,
-                'workHours': e.workHours.inMinutes,
-                'lateArrival': e.lateArrival.inMinutes,
-                'approvedHours': e.approvedHours.inMinutes,
-                'remarks': e.remarks,
-                'isAbsent': e.isAbsent,
-              },
-            )
-            .toList(),
-      },
-    );
+    await _storage.writeJson(_attendanceKey, {
+      'items': records
+          .map(
+            (e) => {
+              'date': e.date.toIso8601String(),
+              'shift': e.shift,
+              'day': e.day,
+              'timeIn': e.timeIn.inMinutes,
+              'timeOut': e.timeOut.inMinutes,
+              'workHours': e.workHours.inMinutes,
+              'lateArrival': e.lateArrival.inMinutes,
+              'approvedHours': e.approvedHours.inMinutes,
+              'remarks': e.remarks,
+              'isAbsent': e.isAbsent,
+            },
+          )
+          .toList(),
+    });
   }
 
   List<AttendanceRecord>? attendance() {
@@ -223,23 +239,22 @@ class LmsLocalDataSource {
     );
   }
 
-  Future<void> cacheNotifications(List<NotificationMessage> notifications) async {
-    await _storage.writeJson(
-      _notificationsKey,
-      {
-        'items': notifications
-            .map(
-              (e) => {
-                'id': e.id,
-                'title': e.title,
-                'body': e.body,
-                'createdAt': e.createdAt.toIso8601String(),
-                'isRead': e.isRead,
-              },
-            )
-            .toList(),
-      },
-    );
+  Future<void> cacheNotifications(
+    List<NotificationMessage> notifications,
+  ) async {
+    await _storage.writeJson(_notificationsKey, {
+      'items': notifications
+          .map(
+            (e) => {
+              'id': e.id,
+              'title': e.title,
+              'body': e.body,
+              'createdAt': e.createdAt.toIso8601String(),
+              'isRead': e.isRead,
+            },
+          )
+          .toList(),
+    });
   }
 
   List<NotificationMessage>? notifications() {
@@ -258,4 +273,3 @@ class LmsLocalDataSource {
         .toList();
   }
 }
-

@@ -3,23 +3,23 @@ import '../../domain/entities/user_entity.dart';
 class UserModel extends UserEntity {
   const UserModel({
     required super.id,
-    required super.name,
-    required super.employeeCode,
-    required super.department,
-    required super.designation,
-    required super.location,
-    required super.cardNumber,
+    super.name = '',
+    super.employeeCode = '',
+    super.department = '',
+    super.designation = '',
+    super.location = '',
+    super.cardNumber = '',
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      employeeCode: json['employeeCode'] as String,
-      department: json['department'] as String,
-      designation: json['designation'] as String,
-      location: json['location'] as String,
-      cardNumber: json['cardNumber'] as String,
+      id: (json['emp_pk'] ?? json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      employeeCode: (json['employeeCode'] ?? '').toString(),
+      department: (json['department'] ?? '').toString(),
+      designation: (json['designation'] ?? '').toString(),
+      location: (json['location'] ?? '').toString(),
+      cardNumber: (json['cardNumber'] ?? '').toString(),
     );
   }
 
@@ -35,4 +35,3 @@ class UserModel extends UserEntity {
     };
   }
 }
-

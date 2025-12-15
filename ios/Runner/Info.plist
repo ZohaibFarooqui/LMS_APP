@@ -2,6 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+		<!-- Location -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location is required to mark attendance</string>
+
+	<!-- Face ID / Touch ID -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID is used for biometric attendance</string>
+
+	<!-- Camera (if face biometric later) -->
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required for biometric verification</string>
+
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

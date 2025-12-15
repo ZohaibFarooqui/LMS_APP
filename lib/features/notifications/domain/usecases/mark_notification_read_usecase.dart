@@ -5,6 +5,5 @@ class MarkNotificationReadUseCase {
 
   final NotificationRepository _repository;
 
-  Future<void> call(String id) => _repository.markAsRead(id);
+  Future<void> call(String id) => _repository.markRead(id);
 }
-

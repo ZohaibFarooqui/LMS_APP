@@ -1,8 +1,22 @@
 import '../entities/notification_message.dart';
 
-abstract class NotificationRepository {
-  Future<List<NotificationMessage>> fetchNotifications();
-  Future<void> markAsRead(String id);
-  List<NotificationMessage>? cachedNotifications();
+class NotificationPage {
+  const NotificationPage({
+    required this.notifications,
+    required this.unreadCount,
+    required this.totalCount,
+  });
+
+  final List<NotificationMessage> notifications;
+  final int unreadCount;
+  final int totalCount;
 }
 
+abstract class NotificationRepository {
+  Future<NotificationPage> fetchNotifications({
+    required int page,
+    required int limit,
+  });
+
+  Future<void> markRead(String id);
+}

@@ -7,7 +7,7 @@ import '../../features/dashboard/domain/entities/dashboard_summary.dart';
 import '../../features/leaves/domain/entities/leave_balance.dart';
 import '../../features/leaves/domain/entities/leave_request.dart';
 import '../../features/notifications/domain/entities/notification_message.dart';
-import '../../features/profile/domain/entities/profile_entity.dart';
+import '../../features/profile/domain/entities/enhanced_profile_entity.dart';
 
 class MockApiService {
   Future<UserEntity> login(String username, String password) async {
@@ -54,7 +54,6 @@ class MockApiService {
       LeaveBalance(code: 'ML', name: 'Medical Leave', balance: 8),
       LeaveBalance(code: 'CP', name: 'Compensatory Leave', balance: 3),
       LeaveBalance(code: 'SL', name: 'Sick Leave', balance: 2),
-      LeaveBalance(code: 'OD', name: 'Out Door Duty', balance: 10),
     ];
   }
 
@@ -82,7 +81,10 @@ class MockApiService {
     ];
   }
 
-  Future<List<AttendanceRecord>> fetchAttendance(DateTime from, DateTime to) async {
+  Future<List<AttendanceRecord>> fetchAttendance(
+    DateTime from,
+    DateTime to,
+  ) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     final records = <AttendanceRecord>[];
     var current = from;
@@ -95,7 +97,9 @@ class MockApiService {
           timeIn: const Duration(hours: 9, minutes: 15),
           timeOut: const Duration(hours: 18, minutes: 5),
           workHours: const Duration(hours: 8, minutes: 50),
-          lateArrival: current.weekday % 3 == 0 ? const Duration(minutes: 10) : Duration.zero,
+          lateArrival: current.weekday % 3 == 0
+              ? const Duration(minutes: 10)
+              : Duration.zero,
           approvedHours: const Duration(hours: 8, minutes: 30),
           remarks: current.weekday % 5 == 0 ? 'Approved work from home' : '',
           isAbsent: current.weekday == DateTime.sunday,
@@ -122,19 +126,19 @@ class MockApiService {
     );
   }
 
-  Future<ProfileEntity> fetchProfile() async {
+  Future<EnhancedProfileEntity> fetchProfile() async {
     await Future<void>.delayed(const Duration(milliseconds: 350));
-    return const ProfileEntity(
+    return EnhancedProfileEntity(
       name: 'Sara Khan',
       employeeCode: 'EMP001',
       cadre: 'Assistant Manager',
       department: 'Human Resources',
       designation: 'HR Specialist',
-      joiningDate: '12-Jan-2019',
+      joiningDate: DateTime(2019, 1, 12),
       location: 'FTC Building',
       cardNumber: 'CARD-7788',
       email: 'sara.khan@ydc.com',
-      phoneNumber: '+92-300-1234567',
+      phoneNumber: '+92-300-1234567', id: '', gender: '', dateOfBirth: DateTime(2003, 05, 09), branch: 'karachi',
     );
   }
 
@@ -158,4 +162,3 @@ class MockApiService {
     ];
   }
 }
-

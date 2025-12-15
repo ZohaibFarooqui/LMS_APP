@@ -12,10 +12,7 @@ class ProfileRequested extends ProfileEvent {
 }
 
 class ProfileContactUpdated extends ProfileEvent {
-  const ProfileContactUpdated({
-    required this.email,
-    required this.phone,
-  });
+  const ProfileContactUpdated({required this.email, required this.phone});
 
   final String email;
   final String phone;
@@ -23,4 +20,3 @@ class ProfileContactUpdated extends ProfileEvent {
   @override
   List<Object?> get props => [email, phone];
 }
-
