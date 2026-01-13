@@ -26,7 +26,8 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   @override
   Future<void> cacheUser(UserModel user) async {
     await _storage.writeJson(_userKey, user.toJson());
-    await _secureStorage.write('emp_pk', user.id);
+    // Cache userid from response for later API calls
+    await _secureStorage.write('userid', user.id);
   }
 
   @override
@@ -37,9 +38,9 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       return UserModel.fromJson(data);
     }
 
-    // If no cached user, check if emp_pk exists (user was logged in before)
-    final empPk = await _secureStorage.read('emp_pk');
-    if (empPk == null || empPk.isEmpty) {
+    // If no cached user, check if userid exists (user was logged in before)
+    final userid = await _secureStorage.read('userid');
+    if (userid == null || userid.isEmpty) {
       return null;
     }
 
@@ -50,7 +51,7 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       try {
         // Create user model from profile data
         final user = UserModel(
-          id: empPk,
+          id: userid,
           name: profileData['name']?.toString() ?? '',
           employeeCode: profileData['employeeCode']?.toString() ?? '',
           department: profileData['department']?.toString() ?? '',
@@ -73,7 +74,7 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   @override
   Future<void> clear() async {
     await _storage.remove(_userKey);
-    await _secureStorage.delete('emp_pk');
+    await _secureStorage.delete('userid');
   }
 
   @override

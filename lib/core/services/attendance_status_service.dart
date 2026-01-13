@@ -11,9 +11,10 @@ enum AttendanceDayStatus {
 }
 
 class AttendanceStatusService {
-  // Office start time: 9:40 AM
+  // Office start time: 9:30 AM (with 10 minutes grace period)
   static const int officeStartHour = 9;
-  static const int officeStartMinute = 40;
+  static const int officeStartMinute = 30;
+  static const int gracePeriodMinutes = 10;
 
   // Late arrival window: 9:41 AM - 11:29 AM
   // Half day cutoff: 11:30 AM
@@ -42,13 +43,16 @@ class AttendanceStatusService {
     final dummyDate = DateTime(2000, 1, 1);
     final actualCheckInDateTime = dummyDate.add(checkInTime);
 
-    // Define office start and half-day cutoff as DateTime objects for comparison
+    // Define office start with grace period and half-day cutoff as DateTime objects
     final officeStartDateTime = DateTime(
       dummyDate.year,
       dummyDate.month,
       dummyDate.day,
       officeStartHour,
       officeStartMinute,
+    );
+    final gracePeriodEndDateTime = officeStartDateTime.add(
+      Duration(minutes: gracePeriodMinutes),
     );
     final lateCutoffDateTime = DateTime(
       dummyDate.year,
@@ -58,14 +62,14 @@ class AttendanceStatusService {
       halfDayCutoffMinute,
     );
 
-    // Check if check-in is before office start (on time/early)
-    if (actualCheckInDateTime.isBefore(officeStartDateTime) ||
-        actualCheckInDateTime.isAtSameMomentAs(officeStartDateTime)) {
+    // Check if check-in is before or within grace period (on time)
+    if (actualCheckInDateTime.isBefore(gracePeriodEndDateTime) ||
+        actualCheckInDateTime.isAtSameMomentAs(gracePeriodEndDateTime)) {
       return AttendanceDayStatus.present;
     }
 
-    // Check if check-in is between office start and late cutoff (late)
-    if (actualCheckInDateTime.isAfter(officeStartDateTime) &&
+    // Check if check-in is after grace period but before late cutoff (late)
+    if (actualCheckInDateTime.isAfter(gracePeriodEndDateTime) &&
         actualCheckInDateTime.isBefore(lateCutoffDateTime)) {
       return AttendanceDayStatus.late;
     }

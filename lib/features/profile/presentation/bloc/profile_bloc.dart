@@ -5,19 +5,25 @@ import '../../domain/entities/enhanced_profile_entity.dart';
 // import '../../domain/repositories/profile_repository.dart';
 import '../../domain/usecases/get_profile_usecase.dart';
 import '../../domain/usecases/update_profile_contacts_usecase.dart';
+import '../../domain/usecases/change_password_usecase.dart';
 
 part 'profile_event.dart';
 part 'profile_state.dart';
 
 class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
-  ProfileBloc(this._getProfileUseCase, this._updateProfileContactsUseCase)
-    : super(const ProfileState()) {
+  ProfileBloc(
+    this._getProfileUseCase,
+    this._updateProfileContactsUseCase,
+    this._changePasswordUseCase,
+  ) : super(const ProfileState()) {
     on<ProfileRequested>(_onRequested);
     on<ProfileContactUpdated>(_onContactUpdated);
+    on<PasswordChangeRequested>(_onPasswordChangeRequested);
   }
 
   final GetProfileUseCase _getProfileUseCase;
   final UpdateProfileContactsUseCase _updateProfileContactsUseCase;
+  final ChangePasswordUseCase _changePasswordUseCase;
 
   Future<void> _onRequested(
     ProfileRequested event,
@@ -44,8 +50,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(status: ProfileStatus.loading, errorMessage: null));
     try {
       final updated = await _updateProfileContactsUseCase(
-        email: event.email,
-        phone: event.phone,
+        emergencyName: event.emergencyName,
+        emergencyPhone: event.emergencyPhone,
+        emergencyRelation: event.emergencyRelation,
       );
       emit(state.copyWith(status: ProfileStatus.success, profile: updated));
     } catch (e) {
@@ -53,6 +60,49 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         state.copyWith(
           status: ProfileStatus.failure,
           errorMessage: e.toString(),
+        ),
+      );
+    }
+  }
+
+  Future<void> _onPasswordChangeRequested(
+    PasswordChangeRequested event,
+    Emitter<ProfileState> emit,
+  ) async {
+    emit(
+      state.copyWith(
+        status: ProfileStatus.loading,
+        errorMessage: null,
+        passwordChangeSuccess: false,
+      ),
+    );
+    try {
+      final success = await _changePasswordUseCase(
+        oldPassword: event.oldPassword,
+        newPassword: event.newPassword,
+      );
+      if (success) {
+        emit(
+          state.copyWith(
+            status: ProfileStatus.success,
+            passwordChangeSuccess: true,
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            status: ProfileStatus.failure,
+            errorMessage: 'Failed to change password. Please try again.',
+            passwordChangeSuccess: false,
+          ),
+        );
+      }
+    } catch (e) {
+      emit(
+        state.copyWith(
+          status: ProfileStatus.failure,
+          errorMessage: e.toString().replaceAll('Exception: ', ''),
+          passwordChangeSuccess: false,
         ),
       );
     }

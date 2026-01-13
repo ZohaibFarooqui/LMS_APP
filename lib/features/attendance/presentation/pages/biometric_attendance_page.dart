@@ -22,6 +22,12 @@ class BiometricAttendancePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Biometric Attendance'), elevation: 0),
       body: BlocConsumer<BiometricAttendanceBloc, BiometricAttendanceState>(
+        listenWhen: (previous, current) {
+          // Only listen to status and message changes
+          return previous.status != current.status ||
+              previous.successMessage != current.successMessage ||
+              previous.errorMessage != current.errorMessage;
+        },
         listener: (context, state) {
           if (state.status == BiometricAttendanceStatus.success &&
               state.successMessage != null) {
@@ -32,7 +38,10 @@ class BiometricAttendancePage extends StatelessWidget {
                 duration: const Duration(seconds: 3),
               ),
             );
-          } else if (state.status == BiometricAttendanceStatus.error &&
+          } else if ((state.status == BiometricAttendanceStatus.error ||
+                  state.status == BiometricAttendanceStatus.faceNotRegistered ||
+                  state.status ==
+                      BiometricAttendanceStatus.faceVerificationFailed) &&
               state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -41,12 +50,66 @@ class BiometricAttendancePage extends StatelessWidget {
                 duration: const Duration(seconds: 4),
               ),
             );
+          } else if (state.status ==
+                  BiometricAttendanceStatus.faceVerificationFailed &&
+              state.faceVerificationMessage != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.faceVerificationMessage!),
+                backgroundColor: AppColors.error,
+                duration: const Duration(seconds: 4),
+              ),
+            );
           }
         },
+        buildWhen: (previous, current) {
+          // Only rebuild when UI-relevant state changes
+          return previous.status != current.status ||
+              previous.isLocationServiceEnabled !=
+                  current.isLocationServiceEnabled ||
+              previous.locationInfo != current.locationInfo ||
+              previous.errorMessage != current.errorMessage;
+        },
         builder: (context, state) {
-          if (state.status == BiometricAttendanceStatus.loading ||
+          // Show loading for initial states
+          if (state.status == BiometricAttendanceStatus.checkingFaceStatus ||
               state.status == BiometricAttendanceStatus.initial) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          // Show error for face not registered
+          if (state.status == BiometricAttendanceStatus.faceNotRegistered) {
+            return Center(
+              child: Padding(
+                padding: EdgeInsets.all(24.0.w),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.face_unlock_outlined,
+                      size: 64.sp,
+                      color: AppColors.error,
+                    ),
+                    SizedBox(height: 16.h),
+                    Text(
+                      'Face Not Registered',
+                      style: TextStyle(
+                        fontSize: 20.sp,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.error,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      state.errorMessage ??
+                          'Please register your face first before marking attendance.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14.sp),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           return SingleChildScrollView(
@@ -69,12 +132,46 @@ class BiometricAttendancePage extends StatelessWidget {
                 SizedBox(height: 24.h),
 
                 // Action Buttons
-                if (state.status == BiometricAttendanceStatus.submitting ||
-                    state.status == BiometricAttendanceStatus.authenticating)
-                  const Center(
+                if (state.status ==
+                        BiometricAttendanceStatus.capturingFaceFrames ||
+                    state.status == BiometricAttendanceStatus.verifyingFace ||
+                    state.status == BiometricAttendanceStatus.markingAttendance)
+                  Center(
                     child: Padding(
                       padding: EdgeInsets.all(24.0),
-                      child: CircularProgressIndicator(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(),
+                          if (state.status ==
+                              BiometricAttendanceStatus.capturingFaceFrames)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16.0),
+                              child: Text(
+                                'Capturing frames: ${state.capturedFramesCount}/${state.totalFramesToCapture}',
+                                style: TextStyle(fontSize: 14.sp),
+                              ),
+                            )
+                          else if (state.status ==
+                              BiometricAttendanceStatus.verifyingFace)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16.0),
+                              child: Text(
+                                'Verifying face...',
+                                style: TextStyle(fontSize: 14.sp),
+                              ),
+                            )
+                          else if (state.status ==
+                              BiometricAttendanceStatus.markingAttendance)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16.0),
+                              child: Text(
+                                'Marking attendance...',
+                                style: TextStyle(fontSize: 14.sp),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   )
                 else
@@ -87,7 +184,11 @@ class BiometricAttendancePage extends StatelessWidget {
 
                 // Error Message Display
                 if (state.errorMessage != null &&
-                    state.status != BiometricAttendanceStatus.error) ...[
+                    state.status != BiometricAttendanceStatus.error &&
+                    state.status !=
+                        BiometricAttendanceStatus.faceNotRegistered &&
+                    state.status !=
+                        BiometricAttendanceStatus.faceVerificationFailed) ...[
                   SizedBox(height: 16.h),
                   Container(
                     padding: EdgeInsets.all(12.w),

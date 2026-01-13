@@ -15,3 +15,9 @@ abstract class AttendanceRepository {
 
   AttendanceSummary? cachedSummary();
 }
+
+
+
+
+
+

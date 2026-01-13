@@ -30,13 +30,20 @@ class MockApiService {
   Future<DashboardSummary> fetchDashboard() async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     return DashboardSummary(
-      userName: 'Sara Khan',
-      employeeCode: 'EMP001',
-      cadre: 'Assistant Manager',
+      empPk: 100,
+      cardNo1: 'CARD-7788',
+      empNo: 'EMP001',
+      empName: 'Sara Khan',
+      dateOfJoin: '2020-01-15T00:00:00Z',
+      nicNo: '12345-1234567-1',
       designation: 'HR Specialist',
       department: 'Human Resources',
-      location: 'FTC Building',
-      cardNumber: 'CARD-7788',
+      compcnm: 'Main Company',
+      compc: 1,
+      branch: 1,
+      brnchnm: 'FTC Building',
+      hod: 50,
+      hodNm: 'John Manager',
       balances: const [
         LeaveBalance(code: 'CL', name: 'Casual Leave', balance: 6),
         LeaveBalance(code: 'EL', name: 'Earned Leave', balance: 15),
@@ -138,7 +145,11 @@ class MockApiService {
       location: 'FTC Building',
       cardNumber: 'CARD-7788',
       email: 'sara.khan@ydc.com',
-      phoneNumber: '+92-300-1234567', id: '', gender: '', dateOfBirth: DateTime(2003, 05, 09), branch: 'karachi',
+      phoneNumber: '+92-300-1234567',
+      id: '',
+      gender: '',
+      dateOfBirth: DateTime(2003, 05, 09),
+      branch: 'karachi',
     );
   }
 

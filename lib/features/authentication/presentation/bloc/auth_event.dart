@@ -42,4 +42,3 @@ class BiometricToggled extends AuthEvent {
 class BiometricLoginRequested extends AuthEvent {
   const BiometricLoginRequested();
 }
-

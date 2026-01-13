@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/services/secure_storage_service.dart';
+import '../../../../di/service_locator.dart';
 import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {
@@ -14,22 +17,227 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<UserModel> login(String username, String password) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/login',
-      data: {'phoneNumber': username, 'passcode': password},
-    );
+    // Prepare request data according to actual API specification:
+    // Request body: {"username": "...", "password": "..."}
+    final requestData = {'username': username, 'password': password};
 
-    final body = response.data?['body'] as Map<String, dynamic>? ?? {};
-    final empPk = body['emp_pk']?.toString() ?? '';
+    try {
+      debugPrint(
+        'AuthRemoteDataSource: Making login request - Username: $username',
+      );
+      debugPrint('AuthRemoteDataSource: Base URL: ${_dio.options.baseUrl}');
 
-    return UserModel(
-      id: empPk,
-      name: '',
-      employeeCode: '',
-      department: '',
-      designation: '',
-      location: '',
-      cardNumber: '',
-    );
+      // Actual API specification:
+      // - Endpoint: POST /login
+      // - Request body: {"username": "...", "password": "..."}
+      // - Response: {"body": {"status": "SUCCESS", "userid": "..."}}
+      // - No token in response
+      final endpoint = '/login';
+
+      debugPrint('AuthRemoteDataSource: Calling endpoint: $endpoint');
+      debugPrint('AuthRemoteDataSource: Request data: $requestData');
+      debugPrint(
+        'AuthRemoteDataSource: Full URL will be: ${_dio.options.baseUrl}$endpoint',
+      );
+
+      final response = await _dio.post<Map<String, dynamic>>(
+        endpoint,
+        data: requestData,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      debugPrint(
+        'AuthRemoteDataSource: Response status: ${response.statusCode}, '
+        'Data: ${response.data}',
+      );
+
+      // Parse response according to actual API spec:
+      // {
+      //   "body": {
+      //     "status": "SUCCESS",
+      //     "userid": "3458000041"
+      //   }
+      // }
+      // OR the response might be directly in the body without wrapping
+      final responseData = response.data;
+      debugPrint('AuthRemoteDataSource: Full response data: $responseData');
+      debugPrint(
+        'AuthRemoteDataSource: Response data type: ${responseData.runtimeType}',
+      );
+
+      if (responseData == null) {
+        debugPrint('AuthRemoteDataSource: ERROR - Response data is null');
+        throw Exception('Invalid response from server');
+      }
+
+      // Try to get body - it might be nested or direct
+      // responseData is guaranteed to be non-null here
+      final responseMap = responseData;
+      Map<String, dynamic>? body;
+      String status = '';
+      String userid = '';
+
+      // Check if response has a 'body' key
+      if (responseMap.containsKey('body')) {
+        body = responseMap['body'] as Map<String, dynamic>?;
+        debugPrint('AuthRemoteDataSource: Found nested body structure');
+      } else {
+        // Response might be directly the body structure
+        body = responseMap;
+        debugPrint(
+          'AuthRemoteDataSource: Response is directly the body structure',
+        );
+      }
+
+      debugPrint('AuthRemoteDataSource: Body: $body');
+
+      if (body != null) {
+        status = body['status']?.toString().toUpperCase() ?? '';
+        // Try to get userid from response, but if not available, use username (phone number)
+        userid =
+            body['userid']?.toString() ??
+            body['user_id']?.toString() ??
+            body['userId']?.toString() ??
+            body['phoneNumber']?.toString() ??
+            body['phone_number']?.toString() ??
+            '';
+      } else {
+        debugPrint(
+          'AuthRemoteDataSource: ERROR - Could not extract body from response',
+        );
+        debugPrint(
+          'AuthRemoteDataSource: Full response structure: $responseData',
+        );
+        throw Exception('Invalid response format: Missing body');
+      }
+
+      // Check status in body
+      final finalStatus = status;
+
+      debugPrint('AuthRemoteDataSource: Status: $finalStatus');
+
+      // API returns "SUCCESS" for successful login
+      if (finalStatus != 'SUCCESS') {
+        final errorMessage =
+            body['message']?.toString() ??
+            body['error']?.toString() ??
+            'Login failed. Please check your credentials.';
+        debugPrint(
+          'AuthRemoteDataSource: Login failed - Status: $finalStatus, Message: $errorMessage',
+        );
+        throw Exception(errorMessage);
+      }
+
+      // Extract card_no from response if available
+      String? cardNo1 = body['card_no']?.toString();
+      if (cardNo1 == null || cardNo1.isEmpty) {
+        // Try alternative field names
+        cardNo1 =
+            body['cardNo1']?.toString() ??
+            body['card_no1']?.toString() ??
+            body['card_number']?.toString() ??
+            body['cardNumber']?.toString();
+      }
+
+      debugPrint(
+        'AuthRemoteDataSource: Extracted card_no: ${cardNo1 ?? "not found"}',
+      );
+      debugPrint(
+        'AuthRemoteDataSource: Available body keys: ${body.keys.toList()}',
+      );
+
+      // If userid is not in response, use the username (phone number) from the login request
+      final finalUserid = userid.isEmpty ? username : userid;
+
+      debugPrint(
+        'AuthRemoteDataSource: User ID: $finalUserid (from ${userid.isEmpty ? "username" : "response"})',
+      );
+
+      // Store username (phone number) in secure storage for future API calls
+      // Note: API doesn't return token, so we just store the username
+      final secureStorage = getIt<SecureStorageService>();
+      await secureStorage.write('phone_number', finalUserid);
+
+      // Store card_no1 if available (used for all API calls)
+      if (cardNo1 != null && cardNo1.isNotEmpty) {
+        await secureStorage.write('card_no1', cardNo1);
+        debugPrint('AuthRemoteDataSource: Stored card_no1: $cardNo1');
+      }
+
+      // Create user model with userid from response
+      // Note: Full user details will be fetched from /data/{phoneNumber} endpoint later
+      final user = UserModel(
+        id: finalUserid,
+        name: '', // Will be populated from dashboard API
+        employeeCode: '', // Will be populated from dashboard API
+        department: '', // Will be populated from dashboard API
+        designation: '', // Will be populated from dashboard API
+        location: '', // Will be populated from dashboard API
+        cardNumber: '', // Will be populated from dashboard API
+      );
+
+      debugPrint(
+        'AuthRemoteDataSource: Login successful - User ID: ${user.id}',
+      );
+      return user;
+    } on DioException catch (e) {
+      // Handle Dio errors with detailed logging
+      debugPrint(
+        'AuthRemoteDataSource: DioException - Type: ${e.type}, '
+        'Message: ${e.message}, Status Code: ${e.response?.statusCode}',
+      );
+
+      if (e.response != null) {
+        final responseData = e.response?.data;
+        debugPrint(
+          'AuthRemoteDataSource: Error response data type: ${responseData.runtimeType}',
+        );
+
+        // Try to extract error message from API response
+        // Actual API format: {"body": {"status": "...", "message": "..."}}
+        String? message;
+        if (responseData is Map<String, dynamic>) {
+          // Check body first (actual API format)
+          final body = responseData['body'] as Map<String, dynamic>?;
+          if (body != null) {
+            message = body['message']?.toString();
+          }
+
+          // Fallback to top-level message or other fields
+          if (message == null || message.isEmpty) {
+            message =
+                responseData['message']?.toString() ??
+                responseData['error']?.toString() ??
+                responseData['errorMessage']?.toString();
+          }
+        }
+
+        // For 404 errors, provide user-friendly message
+        if (e.response?.statusCode == 404) {
+          message =
+              'Login endpoint not found. Please verify the API endpoint or contact support.';
+        }
+
+        final errorMessage = message?.isNotEmpty == true
+            ? message!
+            : (e.message ?? 'Login failed');
+        debugPrint('AuthRemoteDataSource: Throwing error: $errorMessage');
+        throw Exception(errorMessage);
+      }
+
+      final errorMessage = e.message ?? 'Network error';
+      debugPrint('AuthRemoteDataSource: Network error: $errorMessage');
+      throw Exception(errorMessage);
+    } catch (e, stackTrace) {
+      debugPrint(
+        'AuthRemoteDataSource: Unexpected error: $e\nStack trace: $stackTrace',
+      );
+      rethrow;
+    }
   }
 }

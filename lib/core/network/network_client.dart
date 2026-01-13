@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart';
+
+// ignore_for_file: todo
 
 import '../config/app_config.dart';
 import '../errors/app_exception.dart';
@@ -61,9 +64,9 @@ class NetworkClient {
         headers['Authorization'] = 'Bearer $token';
       }
 
-      print('API GET Request: $path');
-      print('Headers: $headers');
-      print('Query Parameters: $queryParameters');
+      debugPrint('API GET Request: $path');
+      debugPrint('Headers: $headers');
+      debugPrint('Query Parameters: $queryParameters');
 
       final response = await _dio.get<T>(
         path,
@@ -71,22 +74,22 @@ class NetworkClient {
         options: Options(headers: headers),
       );
 
-      print('API Response Status: ${response.statusCode}');
-      print('API Response Data: ${response.data}');
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Data: ${response.data}');
 
       return response;
     } on DioException catch (error) {
-      print('API Error: ${error.message}');
-      print('API Error Type: ${error.type}');
-      print('API Error Response: ${error.response?.data}');
-      print('API Error Status Code: ${error.response?.statusCode}');
+      debugPrint('API Error: ${error.message}');
+      debugPrint('API Error Type: ${error.type}');
+      debugPrint('API Error Response: ${error.response?.data}');
+      debugPrint('API Error Status Code: ${error.response?.statusCode}');
       throw NetworkException(
         error.response?.data?['message'] as String? ??
             error.message ??
             'Network error',
       );
     } catch (e) {
-      print('Unexpected error: $e');
+      debugPrint('Unexpected error: $e');
       throw NetworkException('Unexpected error: $e');
     }
   }
@@ -103,9 +106,9 @@ class NetworkClient {
         headers['Authorization'] = 'Bearer $token';
       }
 
-      print('API POST Request: $path');
-      print('Headers: $headers');
-      print('Request Data: $data');
+      debugPrint('API POST Request: $path');
+      debugPrint('Headers: $headers');
+      debugPrint('Request Data: $data');
 
       final response = await _dio.post<T>(
         path,
@@ -113,22 +116,22 @@ class NetworkClient {
         options: Options(headers: headers),
       );
 
-      print('API Response Status: ${response.statusCode}');
-      print('API Response Data: ${response.data}');
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Data: ${response.data}');
 
       return response;
     } on DioException catch (error) {
-      print('API Error: ${error.message}');
-      print('API Error Type: ${error.type}');
-      print('API Error Response: ${error.response?.data}');
-      print('API Error Status Code: ${error.response?.statusCode}');
+      debugPrint('API Error: ${error.message}');
+      debugPrint('API Error Type: ${error.type}');
+      debugPrint('API Error Response: ${error.response?.data}');
+      debugPrint('API Error Status Code: ${error.response?.statusCode}');
       throw NetworkException(
         error.response?.data?['message'] as String? ??
             error.message ??
             'Network error',
       );
     } catch (e) {
-      print('Unexpected error: $e');
+      debugPrint('Unexpected error: $e');
       throw NetworkException('Unexpected error: $e');
     }
   }

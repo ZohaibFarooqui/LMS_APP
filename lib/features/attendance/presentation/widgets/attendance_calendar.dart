@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+// ignore_for_file: todo
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/attendance_status_service.dart'
     as status_service;
@@ -131,8 +133,9 @@ class AttendanceCalendar extends StatelessWidget {
                 .withValues(alpha: 0.2),
             shape: BoxShape.circle,
             border: Border.all(
-                color: isDark ? AppColors.secondary : theme.primaryColor,
-                width: 2),
+              color: isDark ? AppColors.secondary : theme.primaryColor,
+              width: 2,
+            ),
           ),
           disabledDecoration: BoxDecoration(
             color: isDark
@@ -262,7 +265,8 @@ class AttendanceCalendar extends StatelessWidget {
         border: isToday && !isSelected
             ? Border.all(
                 color: isDark ? AppColors.secondary : theme.primaryColor,
-                width: 2)
+                width: 2,
+              )
             : null,
       ),
       child: Stack(

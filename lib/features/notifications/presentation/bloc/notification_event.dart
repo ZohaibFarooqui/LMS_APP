@@ -24,3 +24,9 @@ class NotificationMarkedRead extends NotificationEvent {
   @override
   List<Object?> get props => [id];
 }
+
+
+
+
+
+

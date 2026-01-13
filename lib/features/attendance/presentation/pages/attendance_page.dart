@@ -30,11 +30,24 @@ class _AttendancePageState extends State<AttendancePage> {
     return BlocProvider(
       create: (_) => getIt<AttendanceBloc>()..add(const AttendanceRequested()),
       child: BlocBuilder<AttendanceBloc, AttendanceState>(
+        buildWhen: (previous, current) {
+          // Only rebuild when records or status change
+          return previous.records != current.records ||
+              previous.status != current.status;
+        },
         builder: (context, state) {
           if (state.status == AttendanceStatus.loading &&
               state.records.isEmpty) {
             return const LoadingIndicator();
           }
+
+          // Cache expensive computations
+          final selectedRecord = _getSelectedDateRecord(state.records);
+          final monthlyCounts = _computeMonthlyCounts(
+            state.records,
+            _selectedDate,
+          );
+
           return RefreshIndicator(
             onRefresh: () async =>
                 context.read<AttendanceBloc>().add(const AttendanceRequested()),
@@ -42,10 +55,10 @@ class _AttendancePageState extends State<AttendancePage> {
               padding: EdgeInsets.all(16.w),
               children: [
                 // Biometric Attendance Button
-                _BiometricAttendanceButton(),
+                const _BiometricAttendanceButton(),
                 SizedBox(height: 16.h),
                 // Calendar View
-                _SectionHeader(
+                const _SectionHeader(
                   title: 'Attendance Calendar',
                   icon: Icons.calendar_month_rounded,
                 ),
@@ -61,29 +74,25 @@ class _AttendancePageState extends State<AttendancePage> {
                 ),
                 SizedBox(height: 20.h),
                 // Selected Date Details (moved up, directly below calendar)
-                if (_getSelectedDateRecord(state.records) != null) ...[
-                  _SectionHeader(
+                if (selectedRecord != null) ...[
+                  const _SectionHeader(
                     title: 'Details',
                     icon: Icons.info_outline_rounded,
                   ),
                   SizedBox(height: 12.h),
-                  _AttendanceDetailsCard(
-                    record: _getSelectedDateRecord(state.records)!,
-                  ),
+                  _AttendanceDetailsCard(record: selectedRecord),
                   SizedBox(height: 20.h),
                 ],
                 // Legend
-                _CalendarLegend(),
+                const _CalendarLegend(),
                 SizedBox(height: 20.h),
                 // Summary
-                _SectionHeader(
+                const _SectionHeader(
                   title: 'Summary',
                   icon: Icons.analytics_outlined,
                 ),
                 SizedBox(height: 12.h),
-                _SummaryGrid(
-                  counts: _computeMonthlyCounts(state.records, _selectedDate),
-                ),
+                _SummaryGrid(counts: monthlyCounts),
                 SizedBox(height: 20.h),
               ],
             ),
@@ -631,6 +640,10 @@ class _BiometricAttendanceButton extends StatelessWidget {
     final theme = Theme.of(context);
 
     return BlocBuilder<AuthBloc, AuthState>(
+      buildWhen: (previous, current) {
+        // Only rebuild when user changes
+        return previous.user?.id != current.user?.id;
+      },
       builder: (context, authState) {
         final employeeId = authState.user?.id ?? 'unknown';
 
@@ -671,6 +684,9 @@ class _BiometricAttendanceButton extends StatelessWidget {
                         locationService: getIt(),
                         authRepository: getIt(),
                         markBiometricAttendanceUseCase: getIt(),
+                        faceStatusUseCase: getIt(),
+                        verifyFaceUseCase: getIt(),
+                        faceCameraDataSource: getIt(),
                       )..add(const BiometricAttendanceInitialized()),
                       child: const BiometricAttendancePage(),
                     ),

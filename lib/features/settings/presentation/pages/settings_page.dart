@@ -29,6 +29,11 @@ class _SettingsPageContent extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return BlocBuilder<SettingsCubit, SettingsState>(
+      buildWhen: (previous, current) {
+        // Only rebuild when settings actually change
+        return previous.settings != current.settings ||
+            previous.isLoading != current.isLoading;
+      },
       builder: (context, state) {
         if (state.isLoading) {
           return const Center(child: CircularProgressIndicator());
@@ -66,7 +71,10 @@ class _SettingsPageContent extends StatelessWidget {
 
             // Notifications Section
             _buildSectionHeader(
-                context, 'Notifications', Icons.notifications_outlined),
+              context,
+              'Notifications',
+              Icons.notifications_outlined,
+            ),
             SizedBox(height: 12.h),
             _buildSettingsCard(
               context,
@@ -97,7 +105,10 @@ class _SettingsPageContent extends StatelessWidget {
                   title: 'App Version',
                   value: '1.0.0',
                 ),
-                Divider(height: 1, color: isDark ? Colors.white12 : Colors.grey.shade200),
+                Divider(
+                  height: 1,
+                  color: isDark ? Colors.white12 : Colors.grey.shade200,
+                ),
                 _buildInfoTile(
                   context,
                   icon: Icons.build_rounded,
@@ -113,10 +124,7 @@ class _SettingsPageContent extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    Colors.red.shade400,
-                    Colors.red.shade600,
-                  ],
+                  colors: [Colors.red.shade400, Colors.red.shade600],
                 ),
                 borderRadius: BorderRadius.circular(16.r),
                 boxShadow: [
@@ -138,7 +146,11 @@ class _SettingsPageContent extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.logout_rounded, color: Colors.white, size: 22.sp),
+                        Icon(
+                          Icons.logout_rounded,
+                          color: Colors.white,
+                          size: 22.sp,
+                        ),
                         SizedBox(width: 10.w),
                         Text(
                           'Sign Out',
@@ -163,16 +175,15 @@ class _SettingsPageContent extends StatelessWidget {
   }
 
   Widget _buildSectionHeader(
-      BuildContext context, String title, IconData icon) {
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
     final theme = Theme.of(context);
 
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 20.sp,
-          color: theme.primaryColor,
-        ),
+        Icon(icon, size: 20.sp, color: theme.primaryColor),
         SizedBox(width: 8.w),
         Text(
           title,
@@ -186,8 +197,10 @@ class _SettingsPageContent extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingsCard(BuildContext context,
-      {required List<Widget> children}) {
+  Widget _buildSettingsCard(
+    BuildContext context, {
+    required List<Widget> children,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -208,9 +221,7 @@ class _SettingsPageContent extends StatelessWidget {
                 ),
               ],
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -271,9 +282,9 @@ class _SettingsPageContent extends StatelessWidget {
                         icon: Icons.brightness_auto_rounded,
                         label: 'System',
                         isSelected: appState.themeMode == ThemeMode.system,
-                        onTap: () => context
-                            .read<AppBloc>()
-                            .add(const AppThemeToggled(ThemeMode.system)),
+                        onTap: () => context.read<AppBloc>().add(
+                          const AppThemeToggled(ThemeMode.system),
+                        ),
                       ),
                       SizedBox(width: 12.w),
                       _buildThemeOption(
@@ -281,9 +292,9 @@ class _SettingsPageContent extends StatelessWidget {
                         icon: Icons.light_mode_rounded,
                         label: 'Light',
                         isSelected: appState.themeMode == ThemeMode.light,
-                        onTap: () => context
-                            .read<AppBloc>()
-                            .add(const AppThemeToggled(ThemeMode.light)),
+                        onTap: () => context.read<AppBloc>().add(
+                          const AppThemeToggled(ThemeMode.light),
+                        ),
                       ),
                       SizedBox(width: 12.w),
                       _buildThemeOption(
@@ -291,9 +302,9 @@ class _SettingsPageContent extends StatelessWidget {
                         icon: Icons.dark_mode_rounded,
                         label: 'Dark',
                         isSelected: appState.themeMode == ThemeMode.dark,
-                        onTap: () => context
-                            .read<AppBloc>()
-                            .add(const AppThemeToggled(ThemeMode.dark)),
+                        onTap: () => context.read<AppBloc>().add(
+                          const AppThemeToggled(ThemeMode.dark),
+                        ),
                       ),
                     ],
                   ),
@@ -325,8 +336,10 @@ class _SettingsPageContent extends StatelessWidget {
           decoration: BoxDecoration(
             color: isSelected
                 ? (isDark ? AppColors.secondary : theme.primaryColor)
-                    .withValues(alpha: isDark ? 0.3 : 0.1)
-                : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100),
+                      .withValues(alpha: isDark ? 0.3 : 0.1)
+                : (isDark
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.grey.shade100),
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(
               color: isSelected
@@ -409,7 +422,7 @@ class _SettingsPageContent extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: isDark ? AppColors.secondary : theme.primaryColor,
+            activeThumbColor: isDark ? AppColors.secondary : theme.primaryColor,
           ),
         ],
       ),

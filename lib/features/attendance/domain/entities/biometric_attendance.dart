@@ -91,3 +91,9 @@ class BiometricAttendanceResponse extends Equatable {
     message,
   ];
 }
+
+
+
+
+
+

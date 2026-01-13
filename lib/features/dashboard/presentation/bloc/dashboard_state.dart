@@ -28,3 +28,9 @@ class DashboardState extends Equatable {
   @override
   List<Object?> get props => [status, summary, errorMessage];
 }
+
+
+
+
+
+

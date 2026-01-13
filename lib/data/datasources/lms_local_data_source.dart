@@ -22,13 +22,20 @@ class LmsLocalDataSource {
 
   Future<void> cacheDashboard(DashboardSummary summary) async {
     await _storage.writeJson(_dashboardKey, {
-      'userName': summary.userName,
-      'employeeCode': summary.employeeCode,
-      'cadre': summary.cadre,
+      'empPk': summary.empPk,
+      'cardNo1': summary.cardNo1,
+      'empNo': summary.empNo,
+      'empName': summary.empName,
+      'dateOfJoin': summary.dateOfJoin,
+      'nicNo': summary.nicNo,
       'designation': summary.designation,
       'department': summary.department,
-      'location': summary.location,
-      'cardNumber': summary.cardNumber,
+      'compcnm': summary.compcnm,
+      'compc': summary.compc,
+      'branch': summary.branch,
+      'brnchnm': summary.brnchnm,
+      'hod': summary.hod,
+      'hodNm': summary.hodNm,
       'balances': summary.balances
           .map(
             (balance) => {
@@ -44,23 +51,51 @@ class LmsLocalDataSource {
   DashboardSummary? dashboard() {
     final data = _storage.readJson(_dashboardKey);
     if (data == null) return null;
+
+    int safeInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    String safeString(dynamic value) {
+      if (value == null) return '-';
+      return value.toString();
+    }
+
     return DashboardSummary(
-      userName: data['userName'] as String,
-      employeeCode: data['employeeCode'] as String,
-      cadre: data['cadre'] as String,
-      designation: data['designation'] as String,
-      department: data['department'] as String,
-      location: data['location'] as String,
-      cardNumber: data['cardNumber'] as String,
-      balances: (data['balances'] as List<dynamic>)
-          .map(
-            (e) => LeaveBalance(
-              code: e['code'] as String,
-              name: e['name'] as String,
-              balance: e['balance'] as int,
-            ),
-          )
-          .toList(),
+      empPk: safeInt(data['empPk'] ?? data['emp_pk']),
+      cardNo1: safeString(
+        data['cardNo1'] ?? data['card_no1'] ?? data['cardNumber'],
+      ),
+      empNo: safeString(
+        data['empNo'] ?? data['emp_no'] ?? data['employeeCode'],
+      ),
+      empName: safeString(
+        data['empName'] ?? data['emp_name'] ?? data['userName'],
+      ),
+      dateOfJoin: safeString(data['dateOfJoin'] ?? data['date_of_join']),
+      nicNo: safeString(data['nicNo'] ?? data['nic_no']),
+      designation: safeString(data['designation']),
+      department: safeString(data['department']),
+      compcnm: safeString(data['compcnm']),
+      compc: safeInt(data['compc']),
+      branch: safeInt(data['branch']),
+      brnchnm: safeString(data['brnchnm'] ?? data['location']),
+      hod: safeInt(data['hod']),
+      hodNm: safeString(data['hodNm'] ?? data['hod_nm']),
+      balances:
+          (data['balances'] as List<dynamic>?)
+              ?.map(
+                (e) => LeaveBalance(
+                  code: e['code'] as String,
+                  name: e['name'] as String,
+                  balance: e['balance'] as int,
+                ),
+              )
+              .toList() ??
+          const [],
     );
   }
 

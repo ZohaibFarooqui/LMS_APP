@@ -49,7 +49,8 @@ class _LeaveBalanceView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => getIt<LeaveBalanceBloc>()..add(const LeaveBalanceRequested()),
+      create: (_) =>
+          getIt<LeaveBalanceBloc>()..add(const LeaveBalanceRequested()),
       child: BlocBuilder<LeaveBalanceBloc, LeaveBalanceState>(
         builder: (context, state) {
           if (state.status == LeaveBalanceStatus.loading) {
@@ -71,13 +72,20 @@ class _LeaveBalanceView extends StatelessWidget {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(balance.name, style: Theme.of(context).textTheme.titleMedium),
-                        Text(balance.code, style: Theme.of(context).textTheme.labelMedium),
+                        Text(
+                          balance.name,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        Text(
+                          balance.code,
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
                       ],
                     ),
                     Text(
                       '${balance.balance} days',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -105,7 +113,9 @@ class _LeaveApplicationView extends StatelessWidget {
             );
           } else if (state.status == LeaveApplicationStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.errorMessage ?? 'Failed to submit leave')),
+              SnackBar(
+                content: Text(state.errorMessage ?? 'Failed to submit leave'),
+              ),
             );
           }
         },
@@ -118,22 +128,47 @@ class _LeaveApplicationView extends StatelessWidget {
                 // ignore: deprecated_member_use
                 value: state.leaveType,
                 items: const ['CL', 'CP', 'EL', 'ML', 'OD', 'WP', 'SL']
-                    .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+                    .map(
+                      (type) =>
+                          DropdownMenuItem(value: type, child: Text(type)),
+                    )
                     .toList(),
-                onChanged: (value) => context.read<LeaveApplicationBloc>().add(LeaveTypeChanged(value ?? 'CL')),
+                onChanged: (value) => context.read<LeaveApplicationBloc>().add(
+                  LeaveTypeChanged(value ?? 'CL'),
+                ),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _datePicker(context, 'From', state.fromDate, (date) => context.read<LeaveApplicationBloc>().add(LeaveDatesChanged(date, state.toDate)))),
+                  Expanded(
+                    child: _datePicker(
+                      context,
+                      'From',
+                      state.fromDate,
+                      (date) => context.read<LeaveApplicationBloc>().add(
+                        LeaveDatesChanged(date, state.toDate),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _datePicker(context, 'To', state.toDate, (date) => context.read<LeaveApplicationBloc>().add(LeaveDatesChanged(state.fromDate, date)))),
+                  Expanded(
+                    child: _datePicker(
+                      context,
+                      'To',
+                      state.toDate,
+                      (date) => context.read<LeaveApplicationBloc>().add(
+                        LeaveDatesChanged(state.fromDate, date),
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
                 value: state.halfDay,
-                onChanged: (value) => context.read<LeaveApplicationBloc>().add(LeaveHalfDayToggled(value ?? false)),
+                onChanged: (value) => context.read<LeaveApplicationBloc>().add(
+                  LeaveHalfDayToggled(value ?? false),
+                ),
                 title: const Text('Half Day'),
               ),
               TextFormField(
@@ -141,13 +176,17 @@ class _LeaveApplicationView extends StatelessWidget {
                 minLines: 2,
                 maxLines: 4,
                 initialValue: state.reason,
-                onChanged: (value) => context.read<LeaveApplicationBloc>().add(LeaveReasonChanged(value)),
+                onChanged: (value) => context.read<LeaveApplicationBloc>().add(
+                  LeaveReasonChanged(value),
+                ),
               ),
               const SizedBox(height: 24),
               AppButton(
                 label: 'Submit Request',
                 isLoading: state.status == LeaveApplicationStatus.submitting,
-                onPressed: () => context.read<LeaveApplicationBloc>().add(const LeaveSubmitted()),
+                onPressed: () => context.read<LeaveApplicationBloc>().add(
+                  const LeaveSubmitted(),
+                ),
               ),
             ],
           );
@@ -156,7 +195,12 @@ class _LeaveApplicationView extends StatelessWidget {
     );
   }
 
-  Widget _datePicker(BuildContext context, String label, DateTime date, ValueChanged<DateTime> onSelected) {
+  Widget _datePicker(
+    BuildContext context,
+    String label,
+    DateTime date,
+    ValueChanged<DateTime> onSelected,
+  ) {
     return TextButton(
       onPressed: () async {
         final picked = await showDatePicker(
@@ -201,8 +245,14 @@ class _LeaveStatusView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => getIt<LeaveStatusBloc>()..add(const LeaveStatusRequested()),
+      create: (_) =>
+          getIt<LeaveStatusBloc>()..add(const LeaveStatusRequested()),
       child: BlocBuilder<LeaveStatusBloc, LeaveStatusState>(
+        buildWhen: (previous, current) {
+          // Only rebuild when status or requests change
+          return previous.status != current.status ||
+              previous.requests != current.requests;
+        },
         builder: (context, state) {
           if (state.status == LeaveStatusEnum.loading) {
             return const LoadingIndicator();
@@ -223,9 +273,14 @@ class _LeaveStatusView extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('${request.type} ${request.halfDay ? '(Half Day)' : ''}',
-                            style: Theme.of(context).textTheme.titleMedium),
-                        StatusBadge(label: request.status.name.toUpperCase(), color: _statusColor(request.status)),
+                        Text(
+                          '${request.type} ${request.halfDay ? '(Half Day)' : ''}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        StatusBadge(
+                          label: request.status.name.toUpperCase(),
+                          color: _statusColor(request.status),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -248,4 +303,3 @@ class _LeaveStatusView extends StatelessWidget {
     );
   }
 }
-

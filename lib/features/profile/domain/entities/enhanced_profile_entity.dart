@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 /// Enhanced profile entity with additional fields
-/// 
+///
 /// Includes:
 /// - Profile picture
 /// - Gender
@@ -28,6 +28,17 @@ class EnhancedProfileEntity extends Equatable {
     this.address,
     this.reportingTo,
     this.workSchedule,
+    this.fatherName,
+    this.nicNo,
+    this.nicExpDate,
+    this.eobiNo,
+    this.uicCardNo,
+    this.salary,
+    this.managerAboveSts,
+    this.confirmationDate,
+    this.companyAccommodation,
+    this.compcnm,
+    this.compc,
   });
 
   final String id;
@@ -35,10 +46,10 @@ class EnhancedProfileEntity extends Equatable {
   final String name;
   final String email;
   final String phoneNumber;
-  
+
   /// Gender: 'M' for Male, 'F' for Female
   final String gender;
-  
+
   final DateTime dateOfBirth;
   final DateTime joiningDate;
   final String department;
@@ -47,21 +58,34 @@ class EnhancedProfileEntity extends Equatable {
   final String location;
   final String branch;
   final String cardNumber;
-  
+
   /// URL to profile picture (can be local path or remote URL)
   final String? profilePictureUrl;
-  
+
   /// Emergency contact information
   final EmergencyContact? emergencyContact;
-  
+
   /// Home address
   final Address? address;
-  
+
   /// Reporting manager info
   final ReportingManager? reportingTo;
-  
+
   /// Work schedule configuration
   final WorkSchedule? workSchedule;
+
+  // Additional fields from API
+  final String? fatherName;
+  final String? nicNo;
+  final DateTime? nicExpDate;
+  final String? eobiNo;
+  final String? uicCardNo;
+  final int? salary;
+  final String? managerAboveSts;
+  final DateTime? confirmationDate;
+  final String? companyAccommodation;
+  final String? compcnm;
+  final int? compc;
 
   /// Whether the employee is male
   bool get isMale => gender.toUpperCase() == 'M';
@@ -72,9 +96,40 @@ class EnhancedProfileEntity extends Equatable {
   /// Get gender display text
   String get genderText => isMale ? 'Male' : 'Female';
 
-  /// Get years of service
+  /// Get years of service (integer, for backward compatibility)
   int get yearsOfService {
     return DateTime.now().difference(joiningDate).inDays ~/ 365;
+  }
+
+  /// Get formatted experience string (e.g., "1 year 6 months", "3 months", "1 year")
+  String get experienceFormatted {
+    final now = DateTime.now();
+
+    // Calculate total months
+    int totalMonths =
+        (now.year - joiningDate.year) * 12 + (now.month - joiningDate.month);
+
+    // Adjust if current day is before joining day in the month
+    if (now.day < joiningDate.day) {
+      totalMonths--;
+    }
+
+    // Calculate years and remaining months
+    final years = totalMonths ~/ 12;
+    final months = totalMonths % 12;
+
+    // Format the string
+    if (years == 0 && months == 0) {
+      return 'Less than 1 month';
+    } else if (years == 0) {
+      return months == 1 ? '1 month' : '$months months';
+    } else if (months == 0) {
+      return years == 1 ? '1 year' : '$years years';
+    } else {
+      final yearText = years == 1 ? '1 year' : '$years years';
+      final monthText = months == 1 ? '1 month' : '$months months';
+      return '$yearText $monthText';
+    }
   }
 
   /// Get day type for a given date
@@ -83,12 +138,12 @@ class EnhancedProfileEntity extends Equatable {
     if (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday) {
       return DayType.rest;
     }
-    
+
     // Use custom schedule if available
     if (workSchedule != null) {
       return workSchedule!.getDayType(date.weekday);
     }
-    
+
     return DayType.general;
   }
 
@@ -121,6 +176,17 @@ class EnhancedProfileEntity extends Equatable {
     Address? address,
     ReportingManager? reportingTo,
     WorkSchedule? workSchedule,
+    String? fatherName,
+    String? nicNo,
+    DateTime? nicExpDate,
+    String? eobiNo,
+    String? uicCardNo,
+    int? salary,
+    String? managerAboveSts,
+    DateTime? confirmationDate,
+    String? companyAccommodation,
+    String? compcnm,
+    int? compc,
   }) {
     return EnhancedProfileEntity(
       id: id ?? this.id,
@@ -142,6 +208,17 @@ class EnhancedProfileEntity extends Equatable {
       address: address ?? this.address,
       reportingTo: reportingTo ?? this.reportingTo,
       workSchedule: workSchedule ?? this.workSchedule,
+      fatherName: fatherName ?? this.fatherName,
+      nicNo: nicNo ?? this.nicNo,
+      nicExpDate: nicExpDate ?? this.nicExpDate,
+      eobiNo: eobiNo ?? this.eobiNo,
+      uicCardNo: uicCardNo ?? this.uicCardNo,
+      salary: salary ?? this.salary,
+      managerAboveSts: managerAboveSts ?? this.managerAboveSts,
+      confirmationDate: confirmationDate ?? this.confirmationDate,
+      companyAccommodation: companyAccommodation ?? this.companyAccommodation,
+      compcnm: compcnm ?? this.compcnm,
+      compc: compc ?? this.compc,
     );
   }
 
@@ -187,13 +264,17 @@ class EnhancedProfileEntity extends Equatable {
       cardNumber: json['card_number'] as String,
       profilePictureUrl: json['profile_picture_url'] as String?,
       emergencyContact: json['emergency_contact'] != null
-          ? EmergencyContact.fromJson(json['emergency_contact'] as Map<String, dynamic>)
+          ? EmergencyContact.fromJson(
+              json['emergency_contact'] as Map<String, dynamic>,
+            )
           : null,
       address: json['address'] != null
           ? Address.fromJson(json['address'] as Map<String, dynamic>)
           : null,
       reportingTo: json['reporting_to'] != null
-          ? ReportingManager.fromJson(json['reporting_to'] as Map<String, dynamic>)
+          ? ReportingManager.fromJson(
+              json['reporting_to'] as Map<String, dynamic>,
+            )
           : null,
       workSchedule: json['work_schedule'] != null
           ? WorkSchedule.fromJson(json['work_schedule'] as Map<String, dynamic>)
@@ -203,26 +284,37 @@ class EnhancedProfileEntity extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        employeeCode,
-        name,
-        email,
-        phoneNumber,
-        gender,
-        dateOfBirth,
-        joiningDate,
-        department,
-        designation,
-        cadre,
-        location,
-        branch,
-        cardNumber,
-        profilePictureUrl,
-        emergencyContact,
-        address,
-        reportingTo,
-        workSchedule,
-      ];
+    id,
+    employeeCode,
+    name,
+    email,
+    phoneNumber,
+    gender,
+    dateOfBirth,
+    joiningDate,
+    department,
+    designation,
+    cadre,
+    location,
+    branch,
+    cardNumber,
+    profilePictureUrl,
+    emergencyContact,
+    address,
+    reportingTo,
+    workSchedule,
+    fatherName,
+    nicNo,
+    nicExpDate,
+    eobiNo,
+    uicCardNo,
+    salary,
+    managerAboveSts,
+    confirmationDate,
+    companyAccommodation,
+    compcnm,
+    compc,
+  ];
 }
 
 /// Emergency contact information
@@ -242,12 +334,12 @@ class EmergencyContact extends Equatable {
   final String? address;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'relationship': relationship,
-        'phone_number': phoneNumber,
-        'alternate_phone': alternatePhone,
-        'address': address,
-      };
+    'name': name,
+    'relationship': relationship,
+    'phone_number': phoneNumber,
+    'alternate_phone': alternatePhone,
+    'address': address,
+  };
 
   factory EmergencyContact.fromJson(Map<String, dynamic> json) {
     return EmergencyContact(
@@ -260,7 +352,13 @@ class EmergencyContact extends Equatable {
   }
 
   @override
-  List<Object?> get props => [name, relationship, phoneNumber, alternatePhone, address];
+  List<Object?> get props => [
+    name,
+    relationship,
+    phoneNumber,
+    alternatePhone,
+    address,
+  ];
 }
 
 /// Home address
@@ -292,13 +390,13 @@ class Address extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'line1': line1,
-        'line2': line2,
-        'city': city,
-        'state': state,
-        'country': country,
-        'postal_code': postalCode,
-      };
+    'line1': line1,
+    'line2': line2,
+    'city': city,
+    'state': state,
+    'country': country,
+    'postal_code': postalCode,
+  };
 
   factory Address.fromJson(Map<String, dynamic> json) {
     return Address(
@@ -332,12 +430,12 @@ class ReportingManager extends Equatable {
   final String? email;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'designation': designation,
-        'phone_number': phoneNumber,
-        'email': email,
-      };
+    'id': id,
+    'name': name,
+    'designation': designation,
+    'phone_number': phoneNumber,
+    'email': email,
+  };
 
   factory ReportingManager.fromJson(Map<String, dynamic> json) {
     return ReportingManager(
@@ -360,21 +458,21 @@ class WorkSchedule extends Equatable {
     this.shiftStartTime,
     this.shiftEndTime,
     this.flexibleTiming = false,
-    this.graceMinutes = 15,
+    this.graceMinutes = 10,
   });
 
   /// Days of week that are off (1=Monday, 7=Sunday)
   final List<int> weeklyOffDays;
-  
+
   /// Standard shift start time (e.g., '09:00')
   final String? shiftStartTime;
-  
+
   /// Standard shift end time (e.g., '18:00')
   final String? shiftEndTime;
-  
+
   /// Whether flexible timing is allowed
   final bool flexibleTiming;
-  
+
   /// Grace period in minutes for late arrival
   final int graceMinutes;
 
@@ -386,12 +484,12 @@ class WorkSchedule extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'weekly_off_days': weeklyOffDays,
-        'shift_start_time': shiftStartTime,
-        'shift_end_time': shiftEndTime,
-        'flexible_timing': flexibleTiming,
-        'grace_minutes': graceMinutes,
-      };
+    'weekly_off_days': weeklyOffDays,
+    'shift_start_time': shiftStartTime,
+    'shift_end_time': shiftEndTime,
+    'flexible_timing': flexibleTiming,
+    'grace_minutes': graceMinutes,
+  };
 
   factory WorkSchedule.fromJson(Map<String, dynamic> json) {
     return WorkSchedule(
@@ -399,35 +497,36 @@ class WorkSchedule extends Equatable {
       shiftStartTime: json['shift_start_time'] as String?,
       shiftEndTime: json['shift_end_time'] as String?,
       flexibleTiming: json['flexible_timing'] as bool? ?? false,
-      graceMinutes: json['grace_minutes'] as int? ?? 15,
+      graceMinutes: json['grace_minutes'] as int? ?? 10,
     );
   }
 
   /// Default schedule (Saturday, Sunday off)
   static const WorkSchedule defaultSchedule = WorkSchedule(
     weeklyOffDays: [6, 7], // Saturday, Sunday
-    shiftStartTime: '09:00',
-    shiftEndTime: '18:00',
+    shiftStartTime: '09:30', // 09:30 AM
+    shiftEndTime: '18:00', // 06:00 PM
+    graceMinutes: 10, // 10 minutes grace period
   );
 
   @override
   List<Object?> get props => [
-        weeklyOffDays,
-        shiftStartTime,
-        shiftEndTime,
-        flexibleTiming,
-        graceMinutes,
-      ];
+    weeklyOffDays,
+    shiftStartTime,
+    shiftEndTime,
+    flexibleTiming,
+    graceMinutes,
+  ];
 }
 
 /// Day type classification
 enum DayType {
   /// General working day (G)
   general,
-  
+
   /// Rest day / Weekly off (R)
   rest,
-  
+
   /// Holiday (H)
   holiday,
 }
@@ -455,4 +554,3 @@ extension DayTypeExtension on DayType {
     }
   }
 }
-

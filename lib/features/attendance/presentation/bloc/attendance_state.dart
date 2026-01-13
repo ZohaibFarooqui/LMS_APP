@@ -28,3 +28,9 @@ class AttendanceState extends Equatable {
   @override
   List<Object?> get props => [status, records, errorMessage];
 }
+
+
+
+
+
+

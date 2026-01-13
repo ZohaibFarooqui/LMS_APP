@@ -8,3 +8,9 @@ class GetProfileUseCase {
 
   Future<EnhancedProfileEntity> call() => _repository.fetchProfile();
 }
+
+
+
+
+
+

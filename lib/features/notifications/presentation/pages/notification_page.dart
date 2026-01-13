@@ -143,13 +143,18 @@ class NotificationDrawer extends StatelessWidget {
                       Container(
                         padding: EdgeInsets.all(10.w),
                         decoration: BoxDecoration(
-                          color: (isDark ? AppColors.secondary : theme.primaryColor)
-                              .withValues(alpha: 0.1),
+                          color:
+                              (isDark
+                                      ? AppColors.secondary
+                                      : theme.primaryColor)
+                                  .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12.r),
                         ),
                         child: Icon(
                           Icons.notifications_rounded,
-                          color: isDark ? AppColors.secondary : theme.primaryColor,
+                          color: isDark
+                              ? AppColors.secondary
+                              : theme.primaryColor,
                           size: 22.sp,
                         ),
                       ),
@@ -238,7 +243,9 @@ class _NotificationContent extends StatelessWidget {
                   child: Icon(
                     Icons.notifications_off_outlined,
                     size: 48.sp,
-                    color: isDark ? AppColors.secondary.withValues(alpha: 0.6) : Colors.grey.shade400,
+                    color: isDark
+                        ? AppColors.secondary.withValues(alpha: 0.6)
+                        : Colors.grey.shade400,
                   ),
                 ),
                 SizedBox(height: 20.h),
@@ -363,12 +370,14 @@ class _NotificationCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                        if (!notification.isRead)
+                      if (!notification.isRead)
                         Container(
                           width: 8.w,
                           height: 8.w,
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.secondary : theme.primaryColor,
+                            color: isDark
+                                ? AppColors.secondary
+                                : theme.primaryColor,
                             shape: BoxShape.circle,
                           ),
                         ),

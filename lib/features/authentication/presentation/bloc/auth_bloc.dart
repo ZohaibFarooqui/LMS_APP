@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/services/biometric_service.dart';
@@ -75,39 +76,106 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     LoginRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(state.copyWith(status: AuthStatus.loading));
+    // Clear previous errors and set loading state
+    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+
+    debugPrint('AuthBloc: Starting login for username: ${event.username}');
+
     try {
       final user = await _authenticateUserUseCase(
         event.username,
         event.password,
       );
 
+      debugPrint('AuthBloc: Login successful, user ID: ${user.id}');
+
       // Store phone number (username) in secure storage for API calls
       final secureStorage = getIt<SecureStorageService>();
       await secureStorage.write('phone_number', event.username);
 
+      // Set remember me before emitting authenticated state
       await _authRepository.setRememberMe(
         event.rememberMe,
         username: event.username,
       );
-      emit(
-        state.copyWith(
-          status: AuthStatus.authenticated,
-          user: user,
-          biometricEnabled: state.biometricEnabled,
-          rememberedUsername: event.rememberMe
-              ? event.username
-              : state.rememberedUsername,
-        ),
+
+      // Get biometric enabled state
+      final biometricEnabled = await _authRepository.isBiometricEnabled();
+      final rememberedUsername = event.rememberMe
+          ? event.username
+          : state.rememberedUsername;
+
+      // Emit authenticated state - this should trigger navigation
+      final authenticatedState = state.copyWith(
+        status: AuthStatus.authenticated,
+        user: user,
+        biometricEnabled: biometricEnabled,
+        rememberedUsername: rememberedUsername,
+        clearErrorMessage: true, // Explicitly clear errors
       );
-    } catch (error) {
-      emit(
-        state.copyWith(
-          status: AuthStatus.authenticated,
-          errorMessage: error.toString(),
-        ),
+
+      debugPrint(
+        'AuthBloc: Emitting authenticated state - User: ${user.id}, Status: authenticated',
       );
-      emit(state.copyWith(status: AuthStatus.authenticated));
+
+      emit(authenticatedState);
+    } catch (error, stackTrace) {
+      // Extract clean error message with detailed logging
+      debugPrint('AuthBloc: Login error caught - $error');
+      debugPrint('AuthBloc: Stack trace: $stackTrace');
+
+      String errorMsg = error.toString();
+      if (errorMsg.startsWith('Exception: ')) {
+        errorMsg = errorMsg.substring('Exception: '.length);
+      }
+
+      // Clean up error message - remove verbose Dio error messages
+      if (errorMsg.contains('404')) {
+        errorMsg =
+            'Login endpoint not found. Please check your network connection or contact support.';
+      } else if (errorMsg.contains('status code of 404')) {
+        errorMsg =
+            'Invalid credentials or endpoint not found. Please check your phone number and password.';
+      } else if (errorMsg.contains('Network error') ||
+          errorMsg.contains('SocketException')) {
+        errorMsg = 'Network error. Please check your internet connection.';
+      } else if (errorMsg.length > 200) {
+        // If error message is too long (like Dio's verbose errors), extract meaningful part
+        if (errorMsg.contains('message')) {
+          // Try to extract a shorter message
+          // Look for pattern like: message: "actual message" or message: 'actual message'
+          // Use a simpler regex that avoids complex character classes
+          final doubleQuoteMatch = RegExp(
+            r'message\s*:\s*"([^"]+)"',
+          ).firstMatch(errorMsg);
+          final singleQuoteMatch = RegExp(
+            r"message\s*:\s*'([^']+)'",
+          ).firstMatch(errorMsg);
+
+          if (doubleQuoteMatch != null && doubleQuoteMatch.group(1) != null) {
+            errorMsg = doubleQuoteMatch.group(1)!;
+          } else if (singleQuoteMatch != null &&
+              singleQuoteMatch.group(1) != null) {
+            errorMsg = singleQuoteMatch.group(1)!;
+          } else {
+            errorMsg =
+                'Login failed. Please check your credentials and try again.';
+          }
+        } else {
+          errorMsg =
+              'Login failed. Please check your credentials and try again.';
+        }
+      }
+
+      // Ensure we always have an error message
+      if (errorMsg.isEmpty || errorMsg == 'null') {
+        errorMsg = 'Login failed. Please check your credentials and try again.';
+      }
+
+      debugPrint('AuthBloc: Final error message - $errorMsg');
+
+      // Emit failure state with error message
+      emit(state.copyWith(status: AuthStatus.failure, errorMessage: errorMsg));
     }
   }
 

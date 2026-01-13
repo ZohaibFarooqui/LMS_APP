@@ -4,9 +4,10 @@ import '../../domain/repositories/leave_repository.dart';
 import '../datasources/leave_remote_data_source.dart';
 
 class LeaveRepositoryImpl implements LeaveRepository {
-  LeaveRepositoryImpl(this._remote, this._empPkProvider);
+  LeaveRepositoryImpl(this._remote, this._cardNo1Provider, this._empPkProvider);
 
   final LeaveRemoteDataSource _remote;
+  final Future<String?> Function() _cardNo1Provider;
   final Future<String?> Function() _empPkProvider;
 
   List<LeaveBalance>? _cachedBalances;
@@ -20,16 +21,19 @@ class LeaveRepositoryImpl implements LeaveRepository {
 
   @override
   Future<List<LeaveBalance>> fetchBalances() async {
-    final empPk = await _empPkProvider() ?? '';
-    final data = await _remote.fetchBalances(empPk);
+    final cardNo1 = await _cardNo1Provider() ?? '';
+    if (cardNo1.isEmpty) {
+      throw Exception('Card number not found. Please login again.');
+    }
+    final data = await _remote.fetchBalances(cardNo1);
     _cachedBalances = data;
     return data;
   }
 
   @override
   Future<List<LeaveRequest>> fetchRequests() async {
-    final empPk = await _empPkProvider() ?? '';
-    final data = await _remote.fetchRequests(empPk);
+    final cardNo1 = await _cardNo1Provider() ?? '';
+    final data = await _remote.fetchRequests(cardNo1);
     _cachedRequests = data;
     return data;
   }

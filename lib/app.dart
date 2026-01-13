@@ -21,9 +21,7 @@ class LmsApp extends StatelessWidget {
       builder: (context, child) {
         return MultiBlocProvider(
           providers: [
-            BlocProvider<AppBloc>(
-              create: (_) => getIt<AppBloc>()..loadTheme(),
-            ),
+            BlocProvider<AppBloc>(create: (_) => getIt<AppBloc>()..loadTheme()),
             BlocProvider<AuthBloc>(
               create: (_) => getIt<AuthBloc>()..add(const AuthCheckRequested()),
             ),
@@ -47,22 +45,101 @@ class LmsApp extends StatelessWidget {
   }
 }
 
-class _AppRouter extends StatelessWidget {
+class _AppRouter extends StatefulWidget {
   const _AppRouter();
+
+  @override
+  State<_AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends State<_AppRouter> {
+  static const _loginPageKey = ValueKey('login_page');
+  static const _splashPageKey = ValueKey('splash_page');
+  static const _homeShellKey = ValueKey('home_shell');  
+
+  // Track if we've already shown the login page (to prevent refresh on first login attempt)
+  bool _hasShownLoginPage = false;
+  AuthStatus? _previousStatus;
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
+      buildWhen: (previous, current) {
+        // Rebuild when status changes OR when user changes (important for authenticated state)
+        final shouldRebuild =
+            previous.status != current.status || previous.user != current.user;
+
+        // Track if we've transitioned to unauthenticated (means login page was shown)
+        if (current.status == AuthStatus.unauthenticated &&
+            !_hasShownLoginPage) {
+          _hasShownLoginPage = true;
+        }
+
+        // Track if we're transitioning from unauthenticated to loading (user clicked login)
+        if (_previousStatus == AuthStatus.unauthenticated &&
+            current.status == AuthStatus.loading) {
+          _hasShownLoginPage = true; // Ensure we keep showing login page
+        }
+
+        _previousStatus = current.status;
+        return shouldRebuild;
+      },
       builder: (context, state) {
+        // Debug: Print state changes
+        debugPrint(
+          '_AppRouter: Status=${state.status}, User=${state.user?.id}, '
+          'Error=${state.errorMessage}, RememberedUsername=${state.rememberedUsername}, '
+          'HasShownLoginPage=$_hasShownLoginPage',
+        );
+
         switch (state.status) {
           case AuthStatus.initial:
+            debugPrint('_AppRouter: Showing SplashPage (initial)');
+            return const SplashPage(key: _splashPageKey);
           case AuthStatus.loading:
-            return const SplashPage();
+            // CRITICAL FIX: Only show SplashPage on VERY FIRST app load (initial check)
+            // If we've already shown login page OR have rememberedUsername, keep LoginPage
+            // This prevents page refresh and ensures BlocListener stays active
+            final isVeryFirstLoad =
+                !_hasShownLoginPage &&
+                state.user == null &&
+                state.rememberedUsername == null &&
+                state.errorMessage == null;
+            if (isVeryFirstLoad) {
+              debugPrint(
+                '_AppRouter: Showing SplashPage (very first app load)',
+              );
+              return const SplashPage(key: _splashPageKey);
+            }
+            // During login loading, ALWAYS keep showing LoginPage
+            // This preserves the widget instance and BlocListener
+            debugPrint(
+              '_AppRouter: Keeping LoginPage visible during login loading',
+            );
+            return const LoginPage(key: _loginPageKey);
           case AuthStatus.authenticated:
-            return const HomeShell();
+            // CRITICAL: Only navigate to HomeShell if we have a user
+            if (state.user != null) {
+              debugPrint(
+                '_AppRouter: Navigating to HomeShell - User ID: ${state.user!.id}',
+              );
+              return const HomeShell(key: _homeShellKey);
+            } else {
+              // If authenticated but no user, something went wrong - go back to login
+              debugPrint(
+                '_AppRouter: ERROR - Authenticated but no user! Returning to login.',
+              );
+              return const LoginPage(key: _loginPageKey);
+            }
           case AuthStatus.unauthenticated:
           case AuthStatus.failure:
-            return const LoginPage();
+            // Show LoginPage with same key to preserve state
+            _hasShownLoginPage = true; // Mark that we've shown login page
+            debugPrint(
+              '_AppRouter: Showing LoginPage - Status: ${state.status}, '
+              'Error: ${state.errorMessage}',
+            );
+            return const LoginPage(key: _loginPageKey);
         }
       },
     );

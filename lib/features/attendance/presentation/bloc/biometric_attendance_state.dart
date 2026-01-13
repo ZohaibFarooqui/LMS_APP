@@ -5,20 +5,26 @@ enum BiometricAttendanceStatus {
   /// Initial state
   initial,
 
-  /// Loading biometric capabilities
-  loading,
+  /// Loading face status check
+  checkingFaceStatus,
 
-  /// Ready to mark attendance
+  /// Ready to mark attendance (face is registered)
   ready,
 
-  /// Authenticating with biometrics
-  authenticating,
+  /// Face not registered - cannot proceed
+  faceNotRegistered,
 
-  /// Biometric authentication failed
-  authFailed,
+  /// Capturing face frames for verification
+  capturingFaceFrames,
 
-  /// Submitting attendance to server
-  submitting,
+  /// Verifying face with backend
+  verifyingFace,
+
+  /// Face verification failed
+  faceVerificationFailed,
+
+  /// Face verification succeeded - marking attendance
+  markingAttendance,
 
   /// Attendance marked successfully
   success,
@@ -47,6 +53,11 @@ class BiometricAttendanceState extends Equatable {
     this.hasCheckedOutToday = false,
     this.todayCheckInTime,
     this.todayCheckOutTime,
+    this.isFaceRegistered = false,
+    this.faceVerificationMessage,
+    this.faceVerificationConfidence,
+    this.capturedFramesCount = 0,
+    this.totalFramesToCapture = 5,
   });
 
   /// Current status of the attendance process
@@ -100,6 +111,21 @@ class BiometricAttendanceState extends Equatable {
   /// Today's check-out time
   final String? todayCheckOutTime;
 
+  /// Whether face is registered on backend
+  final bool isFaceRegistered;
+
+  /// Face verification result message
+  final String? faceVerificationMessage;
+
+  /// Face verification confidence score
+  final double? faceVerificationConfidence;
+
+  /// Number of frames captured for verification
+  final int capturedFramesCount;
+
+  /// Total number of frames to capture for verification
+  final int totalFramesToCapture;
+
   /// Whether any biometric is available (from state)
   bool get isBiometricAvailable => hasFaceId || hasFingerprint;
 
@@ -108,16 +134,16 @@ class BiometricAttendanceState extends Equatable {
   bool get isLocationReady => !isLoadingLocation;
 
   /// Whether we can mark attendance
-  /// Requires location services to be enabled
+  /// Requires: face registered, location services enabled, and valid attendance state
   bool get canMarkAttendance {
+    // Must be in ready state (face checked and registered)
     if (status != BiometricAttendanceStatus.ready) return false;
+
+    // Face MUST be registered
+    if (!isFaceRegistered) return false;
 
     // Location services MUST be enabled
     if (!isLocationServiceEnabled) return false;
-
-    // Allow if biometrics are available in state OR if we have any biometric types
-    // This is more lenient than requiring both hasFaceId and hasFingerprint
-    if (!isBiometricAvailable && availableBiometrics.isEmpty) return false;
 
     // Check-in: can only if not already checked in today
     if (attendanceType == 'check_in' && hasCheckedInToday) return false;
@@ -167,6 +193,11 @@ class BiometricAttendanceState extends Equatable {
     bool? hasCheckedOutToday,
     String? todayCheckInTime,
     String? todayCheckOutTime,
+    bool? isFaceRegistered,
+    String? faceVerificationMessage,
+    double? faceVerificationConfidence,
+    int? capturedFramesCount,
+    int? totalFramesToCapture,
   }) {
     return BiometricAttendanceState(
       status: status ?? this.status,
@@ -187,6 +218,12 @@ class BiometricAttendanceState extends Equatable {
       hasCheckedOutToday: hasCheckedOutToday ?? this.hasCheckedOutToday,
       todayCheckInTime: todayCheckInTime ?? this.todayCheckInTime,
       todayCheckOutTime: todayCheckOutTime ?? this.todayCheckOutTime,
+      isFaceRegistered: isFaceRegistered ?? this.isFaceRegistered,
+      faceVerificationMessage: faceVerificationMessage,
+      faceVerificationConfidence: faceVerificationConfidence,
+      capturedFramesCount: capturedFramesCount ?? this.capturedFramesCount,
+      totalFramesToCapture:
+          totalFramesToCapture ?? this.totalFramesToCapture,
     );
   }
 
@@ -209,5 +246,10 @@ class BiometricAttendanceState extends Equatable {
     hasCheckedOutToday,
     todayCheckInTime,
     todayCheckOutTime,
+    isFaceRegistered,
+    faceVerificationMessage,
+    faceVerificationConfidence,
+    capturedFramesCount,
+    totalFramesToCapture,
   ];
 }

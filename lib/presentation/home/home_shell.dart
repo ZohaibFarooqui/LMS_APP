@@ -57,7 +57,8 @@ class _HomeShellState extends State<HomeShell> {
                 gradient: LinearGradient(
                   colors: [
                     isDark ? AppColors.secondary : theme.primaryColor,
-                    (isDark ? AppColors.secondary : theme.primaryColor).withValues(alpha: 0.8),
+                    (isDark ? AppColors.secondary : theme.primaryColor)
+                        .withValues(alpha: 0.8),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -70,7 +71,7 @@ class _HomeShellState extends State<HomeShell> {
                 size: 20.sp,
               ),
             ),
-            
+
             SizedBox(width: 12.w),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

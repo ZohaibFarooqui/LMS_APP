@@ -21,13 +21,16 @@ class AuthState extends Equatable {
     AuthStatus? status,
     UserEntity? user,
     String? errorMessage,
+    bool? clearErrorMessage,
     bool? biometricEnabled,
     String? rememberedUsername,
   }) {
     return AuthState(
       status: status ?? this.status,
       user: user ?? this.user,
-      errorMessage: errorMessage,
+      errorMessage: clearErrorMessage == true
+          ? null
+          : (errorMessage ?? this.errorMessage),
       biometricEnabled: biometricEnabled ?? this.biometricEnabled,
       rememberedUsername: rememberedUsername ?? this.rememberedUsername,
     );
@@ -35,11 +38,10 @@ class AuthState extends Equatable {
 
   @override
   List<Object?> get props => [
-        status,
-        user,
-        errorMessage,
-        biometricEnabled,
-        rememberedUsername,
-      ];
+    status,
+    user,
+    errorMessage,
+    biometricEnabled,
+    rememberedUsername,
+  ];
 }
-

@@ -19,9 +19,9 @@ import '../data/datasources/lms_remote_data_source.dart';
 import '../features/attendance/data/datasources/attendance_remote_data_source.dart';
 import '../features/attendance/data/repositories/attendance_repository_impl.dart';
 import '../features/attendance/domain/repositories/attendance_repository.dart';
+import '../features/attendance/domain/usecases/mark_biometric_attendance_usecase.dart';
 import '../features/attendance/domain/usecases/get_attendance_report_usecase.dart';
 import '../features/attendance/domain/usecases/get_attendance_summary_usecase.dart';
-import '../features/attendance/domain/usecases/mark_biometric_attendance_usecase.dart';
 import '../features/attendance/presentation/bloc/attendance_bloc.dart';
 import '../features/authentication/data/datasources/auth_local_data_source.dart';
 import '../features/authentication/data/datasources/auth_remote_data_source.dart';
@@ -32,7 +32,6 @@ import '../features/authentication/domain/usecases/get_cached_user_usecase.dart'
 import '../features/authentication/domain/usecases/logout_usecase.dart';
 import '../features/authentication/domain/usecases/toggle_biometric_usecase.dart';
 import '../features/authentication/presentation/bloc/auth_bloc.dart';
-import '../features/dashboard/data/datasources/dashboard_remote_data_source.dart';
 import '../features/dashboard/data/repositories/dashboard_repository_impl.dart';
 import '../features/dashboard/domain/repositories/dashboard_repository.dart';
 import '../features/dashboard/domain/usecases/get_dashboard_summary_usecase.dart';
@@ -62,10 +61,30 @@ import '../features/profile/data/repositories/profile_repository_impl.dart';
 import '../features/profile/domain/repositories/profile_repository.dart';
 import '../features/profile/domain/usecases/get_profile_usecase.dart';
 import '../features/profile/domain/usecases/update_profile_contacts_usecase.dart';
+import '../features/profile/domain/usecases/change_password_usecase.dart';
 import '../features/profile/presentation/bloc/profile_bloc.dart';
 import '../features/settings/data/repositories/settings_repository_impl.dart';
 import '../features/settings/domain/repositories/settings_repository.dart';
 import '../features/settings/presentation/cubit/settings_cubit.dart';
+import '../features/face_verification/data/datasources/face_verification_remote_data_source.dart';
+import '../features/face_verification/data/datasources/face_storage_datasource.dart';
+import '../features/face_verification/data/datasources/face_image_storage_datasource.dart';
+import '../features/face_verification/data/repositories/face_verification_repository_impl.dart';
+import '../features/face_verification/domain/repositories/face_verification_repository.dart';
+import '../features/face_verification/domain/usecases/enroll_face_usecase.dart';
+import '../features/face_verification/domain/usecases/verify_face_usecase.dart'
+    as face_verification;
+import '../features/face_verification/data/datasources/face_camera_datasource.dart';
+import '../features/face_verification/data/datasources/face_embedding_datasource.dart';
+import '../features/face_verification/presentation/bloc/face_verification_bloc.dart';
+import '../features/face_auth/data/datasources/face_remote_datasource.dart';
+import '../features/face_auth/data/repositories/face_repository_impl.dart';
+import '../features/face_auth/domain/repositories/face_repository.dart';
+import '../features/face_auth/domain/usecases/face_status_usecase.dart';
+import '../features/face_auth/domain/usecases/register_face_usecase.dart';
+import '../features/face_auth/domain/usecases/verify_face_usecase.dart'
+    as face_auth;
+import '../features/face_auth/presentation/bloc/face_bloc.dart';
 import '../shared/bloc/app_bloc.dart';
 
 final getIt = GetIt.instance;
@@ -146,18 +165,19 @@ Future<void> configureDependencies() async {
       ),
     );
 
+  Future<String?> cardNo1Provider() =>
+      getIt<SecureStorageService>().read('card_no1');
+
   Future<String?> empPkProvider() =>
       getIt<SecureStorageService>().read('emp_pk');
 
   // Dashboard
   getIt
-    ..registerLazySingleton<DashboardRemoteDataSource>(
-      () => DashboardRemoteDataSourceImpl(),
-    )
     ..registerLazySingleton<DashboardRepository>(
       () => DashboardRepositoryImpl(
-        getIt<DashboardRemoteDataSource>(),
-        empPkProvider,
+        getIt<LmsRemoteDataSource>(),
+        getIt<LmsLocalDataSource>(),
+        getIt<GetProfileUseCase>(),
       ),
     )
     ..registerLazySingleton(() => GetDashboardSummaryUseCase(getIt()))
@@ -185,7 +205,11 @@ Future<void> configureDependencies() async {
       () => LeaveRemoteDataSourceImpl(),
     )
     ..registerLazySingleton<LeaveRepository>(
-      () => LeaveRepositoryImpl(getIt<LeaveRemoteDataSource>(), empPkProvider),
+      () => LeaveRepositoryImpl(
+        getIt<LeaveRemoteDataSource>(),
+        cardNo1Provider,
+        empPkProvider,
+      ),
     )
     ..registerLazySingleton(() => GetLeaveBalancesUseCase(getIt()))
     ..registerLazySingleton(() => GetLeaveRequestsUseCase(getIt()))
@@ -201,13 +225,14 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton<EnhancedProfileRepository>(
       () => ProfileRepositoryImpl(
-        getIt<ProfileRemoteDataSource>(),
-        empPkProvider,
+        getIt<LmsRemoteDataSource>(),
+        getIt<LmsLocalDataSource>(),
       ),
     )
     ..registerLazySingleton(() => GetProfileUseCase(getIt()))
     ..registerLazySingleton(() => UpdateProfileContactsUseCase(getIt()))
-    ..registerFactory(() => ProfileBloc(getIt(), getIt()));
+    ..registerLazySingleton(() => ChangePasswordUseCase(getIt()))
+    ..registerFactory(() => ProfileBloc(getIt(), getIt(), getIt()));
 
   // Notifications
   getIt
@@ -239,6 +264,63 @@ Future<void> configureDependencies() async {
       () => SettingsRepositoryImpl(getIt<LocalStorageService>()),
     )
     ..registerFactory(() => SettingsCubit(getIt()));
+
+  // Face Verification
+  getIt
+    ..registerLazySingleton<FaceVerificationRemoteDataSource>(
+      () => FaceVerificationRemoteDataSourceImpl(),
+    )
+    ..registerLazySingleton<FaceStorageDataSource>(
+      () => FaceStorageDataSourceImpl(getIt<SecureStorageService>()),
+    )
+    ..registerLazySingleton<FaceImageStorageDataSource>(
+      () => FaceImageStorageDataSourceImpl(),
+    )
+    ..registerLazySingleton<FaceVerificationRepository>(
+      () => FaceVerificationRepositoryImpl(
+        getIt<FaceVerificationRemoteDataSource>(),
+        getIt<FaceStorageDataSource>(),
+        getIt<FaceImageStorageDataSource>(),
+      ),
+    )
+    ..registerLazySingleton(() => EnrollFaceUseCase(getIt()))
+    ..registerLazySingleton(() => face_verification.VerifyFaceUseCase(getIt()))
+    ..registerLazySingleton<FaceCameraDataSource>(
+      () => FaceCameraDataSourceImpl(),
+    )
+    ..registerLazySingleton<FaceEmbeddingDataSource>(
+      () => FaceEmbeddingDataSourceImpl(),
+    )
+    ..registerFactory(
+      () => FaceVerificationBloc(
+        cameraDataSource: getIt<FaceCameraDataSource>(),
+        embeddingDataSource: getIt<FaceEmbeddingDataSource>(),
+        repository: getIt<FaceVerificationRepository>(),
+        enrollFaceUseCase: getIt<EnrollFaceUseCase>(),
+        registerFaceUseCase: getIt<RegisterFaceUseCase>(),
+        authVerifyFaceUseCase: getIt<face_auth.VerifyFaceUseCase>(),
+        imageStorageDataSource: getIt<FaceImageStorageDataSource>(),
+      ),
+    );
+
+  // Face Auth (New FastAPI Backend)
+  getIt
+    ..registerLazySingleton<FaceRemoteDataSource>(
+      () => FaceRemoteDataSourceImpl(config: getIt<AppConfig>()),
+    )
+    ..registerLazySingleton<FaceRepository>(
+      () => FaceRepositoryImpl(getIt<FaceRemoteDataSource>()),
+    )
+    ..registerLazySingleton(() => FaceStatusUseCase(getIt()))
+    ..registerLazySingleton(() => RegisterFaceUseCase(getIt()))
+    ..registerLazySingleton(() => face_auth.VerifyFaceUseCase(getIt()))
+    ..registerFactory(
+      () => FaceBloc(
+        faceStatusUseCase: getIt(),
+        registerFaceUseCase: getIt(),
+        verifyFaceUseCase: getIt(),
+      ),
+    );
 
   // Global Blocs
   getIt.registerLazySingleton(

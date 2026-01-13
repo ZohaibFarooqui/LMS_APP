@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:local_auth/local_auth.dart';
-
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/biometric_service.dart';
+import '../../../../core/services/secure_storage_service.dart';
 import '../../../../di/service_locator.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../authentication/data/datasources/auth_local_data_source.dart';
+import '../../../face_verification/domain/repositories/face_verification_repository.dart';
+import '../../../face_verification/presentation/bloc/face_verification_bloc.dart';
+import '../../../face_verification/presentation/pages/face_enrollment_page.dart';
+import '../../../face_verification/presentation/pages/face_verification_page.dart';
 import '../../domain/entities/enhanced_profile_entity.dart';
 import '../bloc/profile_bloc.dart';
 
@@ -34,6 +39,15 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
   final _emergencyNameController = TextEditingController();
   final _emergencyPhoneController = TextEditingController();
   final _emergencyRelationController = TextEditingController();
+  final _oldPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _oldPasswordFocusNode = FocusNode();
+  final _newPasswordFocusNode = FocusNode();
+  final _confirmPasswordFocusNode = FocusNode();
+  bool _obscureOldPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void initState() {
@@ -49,6 +63,12 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     _emergencyNameController.dispose();
     _emergencyPhoneController.dispose();
     _emergencyRelationController.dispose();
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    _oldPasswordFocusNode.dispose();
+    _newPasswordFocusNode.dispose();
+    _confirmPasswordFocusNode.dispose();
     super.dispose();
   }
 
@@ -64,16 +84,51 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           }
 
           if (state.status == ProfileStatus.success) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Profile updated successfully'),
-                backgroundColor: AppColors.success,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10.r),
+            if (state.passwordChangeSuccess) {
+              // Password change success
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Password changed successfully'),
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                  duration: const Duration(seconds: 3),
                 ),
-              ),
-            );
+              );
+              // Clear password fields
+              _oldPasswordController.clear();
+              _newPasswordController.clear();
+              _confirmPasswordController.clear();
+              // Show WhatsApp notification message
+              Future.delayed(const Duration(seconds: 1), () {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'WhatsApp notification sent to your registered phone number.',
+                      ),
+                      backgroundColor: AppColors.info,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                }
+              });
+            } else {
+              // Profile update success
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Profile updated successfully'),
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.r),
+                  ),
+                ),
+              );
+            }
           }
         },
         builder: (context, state) {
@@ -91,34 +146,46 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // Mock enhanced profile for demo
-    final mockProfile = EnhancedProfileEntity(
-      id: '106',
-      employeeCode: 'F-84',
-      name: state.profile?.name ?? 'John Doe',
-      email: state.profile?.email ?? 'john.doe@company.com',
-      phoneNumber: state.profile?.phoneNumber ?? '3458000041',
-      gender: 'M',
-      dateOfBirth: DateTime(1990, 5, 15),
-      joiningDate: DateTime(2019, 11, 21),
-      department: state.profile?.department ?? 'IT',
-      designation: state.profile?.designation ?? 'DY. GENERAL MANAGER',
-      cadre: state.profile?.cadre ?? 'Management',
-      location: state.profile?.location ?? 'Karachi',
-      branch: 'Head Office',
-      cardNumber: state.profile?.cardNumber ?? '10000106.1.2',
-      emergencyContact: const EmergencyContact(
-        name: 'Jane Doe',
-        relationship: 'Spouse',
-        phoneNumber: '0300XXXXXXX',
-      ),
-      workSchedule: WorkSchedule.defaultSchedule,
-    );
+    // CRITICAL: Only use profile from API - NO cached data fallback
+    // This ensures we always show the current logged-in user's data
+    if (state.profile == null) {
+      // If profile is null, show loading or error
+      if (state.status == ProfileStatus.failure) {
+        return Center(
+          child: Padding(
+            padding: EdgeInsets.all(24.w),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64.sp, color: Colors.red),
+                SizedBox(height: 16.h),
+                Text(
+                  state.errorMessage ?? 'Failed to load profile',
+                  style: TextStyle(fontSize: 16.sp),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 24.h),
+                ElevatedButton(
+                  onPressed: () {
+                    context.read<ProfileBloc>().add(const ProfileRequested());
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      // Still loading
+      return const LoadingIndicator();
+    }
+
+    final profile = state.profile!;
 
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) => [
         SliverToBoxAdapter(
-          child: _buildProfileHeader(context, mockProfile, isDark),
+          child: _buildProfileHeader(context, profile, isDark),
         ),
         SliverPersistentHeader(
           delegate: _SliverAppBarDelegate(
@@ -145,9 +212,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildInfoTab(context, mockProfile, isDark),
-          _buildScheduleTab(context, mockProfile, isDark),
-          _buildEditTab(context, mockProfile, state, isDark),
+          _buildInfoTab(context, profile, isDark),
+          _buildScheduleTab(context, profile, isDark),
+          _buildEditTab(context, profile, state, isDark),
         ],
       ),
     );
@@ -190,18 +257,56 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                   ),
                 ],
               ),
-                child: CircleAvatar(
-                radius: 50.w,
-                backgroundColor: Colors.white,
-                child: Text(
-                  profile.initials,
-                  style: TextStyle(
-                    fontSize: 32.sp,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.secondary : theme.primaryColor,
-                  ),
-                ),
-              ),
+              child:
+                  profile.profilePictureUrl != null &&
+                      profile.profilePictureUrl!.isNotEmpty
+                  ? ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: profile.profilePictureUrl!,
+                        width: 100.w,
+                        height: 100.w,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.white,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                theme.primaryColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => CircleAvatar(
+                          radius: 50.w,
+                          backgroundColor: Colors.white,
+                          child: Text(
+                            profile.initials,
+                            style: TextStyle(
+                              fontSize: 32.sp,
+                              fontWeight: FontWeight.bold,
+                              color: isDark
+                                  ? AppColors.secondary
+                                  : theme.primaryColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : CircleAvatar(
+                      radius: 50.w,
+                      backgroundColor: Colors.white,
+                      child: Text(
+                        profile.initials,
+                        style: TextStyle(
+                          fontSize: 32.sp,
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? AppColors.secondary
+                              : theme.primaryColor,
+                        ),
+                      ),
+                    ),
             ),
 
             SizedBox(height: 16.h),
@@ -214,6 +319,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
 
             SizedBox(height: 4.h),
@@ -225,6 +333,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 fontSize: 14.sp,
                 color: Colors.white.withValues(alpha: 0.9),
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
             ),
 
             SizedBox(height: 12.h),
@@ -236,7 +347,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20.r),
               ),
-                  child: Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.badge_outlined, size: 16.sp, color: Colors.white),
@@ -255,13 +366,15 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
 
             SizedBox(height: 20.h),
 
-            // Quick Stats
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            // Quick Stats (wrap for small screens)
+            Wrap(
+              spacing: 12.w,
+              runSpacing: 8.h,
+              alignment: WrapAlignment.center,
               children: [
                 _buildQuickStat(
-                  'Years',
-                  '${profile.yearsOfService}',
+                  'Experience',
+                  profile.experienceFormatted,
                   Icons.work_history_outlined,
                 ),
                 _buildQuickStat(
@@ -328,6 +441,13 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           icon: Icons.person_outline,
           isDark: isDark,
           children: [
+            if (profile.fatherName != null && profile.fatherName!.isNotEmpty)
+              _buildInfoRow(
+                'Father Name',
+                profile.fatherName!,
+                Icons.family_restroom_outlined,
+                isDark,
+              ),
             _buildInfoRow('Email', profile.email, Icons.email_outlined, isDark),
             _buildInfoRow(
               'Phone',
@@ -347,6 +467,34 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               profile.isMale ? Icons.male_rounded : Icons.female_rounded,
               isDark,
             ),
+            if (profile.nicNo != null && profile.nicNo!.isNotEmpty)
+              _buildInfoRow(
+                'NIC Number',
+                profile.nicNo!,
+                Icons.badge_outlined,
+                isDark,
+              ),
+            if (profile.nicExpDate != null)
+              _buildInfoRow(
+                'NIC Expiry Date',
+                _formatDate(profile.nicExpDate!),
+                Icons.calendar_today_outlined,
+                isDark,
+              ),
+            if (profile.eobiNo != null && profile.eobiNo!.isNotEmpty)
+              _buildInfoRow(
+                'EOBI Number',
+                profile.eobiNo!,
+                Icons.account_box_outlined,
+                isDark,
+              ),
+            if (profile.uicCardNo != null && profile.uicCardNo!.isNotEmpty)
+              _buildInfoRow(
+                'UIC Card Number',
+                profile.uicCardNo!,
+                Icons.credit_card_outlined,
+                isDark,
+              ),
           ],
         ),
 
@@ -360,9 +508,34 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           isDark: isDark,
           children: [
             _buildInfoRow(
+              'Employee Code',
+              profile.employeeCode,
+              Icons.badge_outlined,
+              isDark,
+            ),
+            _buildInfoRow(
               'Joining Date',
               _formatDate(profile.joiningDate),
               Icons.event_outlined,
+              isDark,
+            ),
+            if (profile.confirmationDate != null)
+              _buildInfoRow(
+                'Confirmation Date',
+                _formatDate(profile.confirmationDate!),
+                Icons.check_circle_outline,
+                isDark,
+              ),
+            _buildInfoRow(
+              'Designation',
+              profile.designation,
+              Icons.work_outline,
+              isDark,
+            ),
+            _buildInfoRow(
+              'Department',
+              profile.department,
+              Icons.business_outlined,
               isDark,
             ),
             _buildInfoRow(
@@ -371,10 +544,58 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               Icons.category_outlined,
               isDark,
             ),
+            if (profile.salary != null)
+              _buildInfoRow(
+                'Salary',
+                'PKR ${profile.salary!.toStringAsFixed(0)}',
+                Icons.attach_money_outlined,
+                isDark,
+              ),
+            if (profile.managerAboveSts != null &&
+                profile.managerAboveSts!.isNotEmpty)
+              _buildInfoRow(
+                'Manager Above Status',
+                profile.managerAboveSts!,
+                Icons.admin_panel_settings_outlined,
+                isDark,
+              ),
+            if (profile.companyAccommodation != null &&
+                profile.companyAccommodation!.isNotEmpty)
+              _buildInfoRow(
+                'Company Accommodation',
+                profile.companyAccommodation!,
+                Icons.home_outlined,
+                isDark,
+              ),
+          ],
+        ),
+
+        SizedBox(height: 16.h),
+
+        // Organization Information
+        _buildSection(
+          context,
+          title: 'Organization Information',
+          icon: Icons.business_outlined,
+          isDark: isDark,
+          children: [
+            if (profile.compcnm != null && profile.compcnm!.isNotEmpty)
+              _buildInfoRow(
+                'Company',
+                profile.compcnm!,
+                Icons.business_outlined,
+                isDark,
+              ),
+            _buildInfoRow(
+              'Branch',
+              profile.branch,
+              Icons.location_on_outlined,
+              isDark,
+            ),
             _buildInfoRow(
               'Location',
               profile.location,
-              Icons.location_on_outlined,
+              Icons.place_outlined,
               isDark,
             ),
             _buildInfoRow(
@@ -441,20 +662,16 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
             isDark: isDark,
             children: [
               _buildInfoRow(
-                'Name',
+                'HOD Name',
                 profile.reportingTo!.name,
                 Icons.person_outline,
                 isDark,
               ),
-              _buildInfoRow(
-                'Designation',
-                profile.reportingTo!.designation,
-                Icons.work_outline,
-                isDark,
-              ),
-              if (profile.reportingTo!.phoneNumber != null)
+              if (profile.reportingTo!.phoneNumber != null &&
+                  profile.reportingTo!.phoneNumber!.isNotEmpty &&
+                  profile.reportingTo!.phoneNumber != '-')
                 _buildInfoRow(
-                  'Phone',
+                  'HOD Phone Number',
                   profile.reportingTo!.phoneNumber!,
                   Icons.phone_outlined,
                   isDark,
@@ -462,8 +679,226 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
             ],
           ),
 
+        SizedBox(height: 16.h),
+
+        // Face Verification Section
+        _buildFaceVerificationSection(context, isDark),
+
         SizedBox(height: 80.h),
       ],
+    );
+  }
+
+  Widget _buildFaceVerificationSection(BuildContext context, bool isDark) {
+    final theme = Theme.of(context);
+    final faceBloc = getIt<FaceVerificationBloc>();
+    // Initialize if not already initialized
+    if (faceBloc.state.status == FaceVerificationStatus.initial) {
+      faceBloc.add(const FaceVerificationInitialized());
+    }
+
+    return BlocBuilder<FaceVerificationBloc, FaceVerificationState>(
+      bloc: faceBloc,
+      builder: (context, faceState) {
+        final hasEnrolled = faceState.hasEnrolledFace;
+
+        return _buildSection(
+          context,
+          title: 'Face Verification',
+          icon: Icons.face_outlined,
+          isDark: isDark,
+          children: [
+            Container(
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        hasEnrolled ? Icons.check_circle : Icons.info_outline,
+                        color: hasEnrolled
+                            ? AppColors.success
+                            : (isDark
+                                  ? AppColors.secondary
+                                  : theme.primaryColor),
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Text(
+                          hasEnrolled
+                              ? 'Face enrolled for attendance verification'
+                              : 'Enroll your face for attendance verification',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.white
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16.h),
+                  Row(
+                    children: [
+                      if (!hasEnrolled)
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final navigator = Navigator.of(context);
+                              final result = await navigator.push<bool>(
+                                MaterialPageRoute(
+                                  builder: (_) => const FaceEnrollmentPage(),
+                                ),
+                              );
+                              if (result == true) {
+                                if (!mounted) return;
+                                // Refresh face verification state
+                                faceBloc.add(
+                                  const FaceVerificationInitialized(),
+                                );
+                              }
+                            },
+                            icon: Icon(Icons.add_circle_outline, size: 18.sp),
+                            label: const Text('Enroll Face'),
+                            style: ElevatedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              backgroundColor: isDark
+                                  ? AppColors.secondary
+                                  : theme.primaryColor,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                      if (hasEnrolled) ...[
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final navigator = Navigator.of(context);
+                              final messenger = ScaffoldMessenger.of(context);
+                              final result = await navigator.push<bool>(
+                                MaterialPageRoute(
+                                  builder: (_) => const FaceVerificationPage(),
+                                ),
+                              );
+                              if (result == true) {
+                                if (!mounted) return;
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: const Text(
+                                      'Face verified successfully',
+                                    ),
+                                    backgroundColor: AppColors.success,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: Icon(
+                              Icons.verified_user_outlined,
+                              size: 18.sp,
+                            ),
+                            label: const Text('Verify Face'),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 12.h),
+                              side: BorderSide(
+                                color: isDark
+                                    ? AppColors.secondary
+                                    : theme.primaryColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12.w),
+                        IconButton(
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete Face Enrollment?'),
+                                content: const Text(
+                                  'This will remove your enrolled face data. '
+                                  'You will need to enroll again to use face verification.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirmed == true) {
+                              if (!mounted) return;
+                              final repository =
+                                  getIt<FaceVerificationRepository>();
+                              final secureStorage =
+                                  getIt<SecureStorageService>();
+                              final cardNo1 =
+                                  await secureStorage.read('card_no1') ?? '';
+
+                              if (cardNo1.isNotEmpty) {
+                                await repository.deleteEnrolledFace(cardNo1);
+                              }
+
+                              if (!mounted) return;
+                              faceBloc.add(const FaceVerificationInitialized());
+
+                              if (!mounted) return;
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: const Text(
+                                    'Face enrollment deleted',
+                                  ),
+                                  backgroundColor: AppColors.success,
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                          icon: Icon(Icons.delete_outline, size: 20.sp),
+                          color: AppColors.error,
+                          tooltip: 'Delete enrollment',
+                        ),
+                      ],
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
+                  Text(
+                    'Face verification uses on-device processing. '
+                    'Only numeric face embeddings are stored, not images.',
+                    style: TextStyle(
+                      fontSize: 11.sp,
+                      color: isDark ? Colors.white54 : AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -486,7 +921,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           children: [
             Padding(
               padding: EdgeInsets.all(12.w),
-              child: Row(
+              child: Wrap(
+                spacing: 16.w,
+                runSpacing: 12.h,
                 children: [
                   _buildDayTypeLegend(
                     'G',
@@ -494,7 +931,6 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                     AppColors.success,
                     isDark,
                   ),
-                  SizedBox(width: 16.w),
                   _buildDayTypeLegend(
                     'R',
                     'Rest (Weekly Off)',
@@ -556,7 +992,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
             children: [
               _buildInfoRow(
                 'Start Time',
-                profile.workSchedule!.shiftStartTime ?? '09:00 AM',
+                profile.workSchedule!.shiftStartTime ?? '09:30 AM',
                 Icons.login_outlined,
                 isDark,
               ),
@@ -591,7 +1027,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     return ListView(
       padding: EdgeInsets.all(16.w),
       children: [
-        // Contact Information
+        // Contact Information (Read-only)
         _buildSection(
           context,
           title: 'Contact Information',
@@ -602,20 +1038,135 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               padding: EdgeInsets.all(16.w),
               child: Column(
                 children: [
-                  _buildTextField(
-                    controller: _emailController,
-                    label: 'Email',
-                    icon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                    isDark: isDark,
+                  // Email - Read-only
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 12.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: isDark ? Colors.white12 : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.email_outlined,
+                          color: isDark
+                              ? Colors.white54
+                              : AppColors.textSecondary,
+                          size: 20.sp,
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Email',
+                                style: TextStyle(
+                                  fontSize: 11.sp,
+                                  color: isDark
+                                      ? Colors.white54
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                              SizedBox(height: 2.h),
+                              Text(
+                                profile.email.isNotEmpty && profile.email != '-'
+                                    ? profile.email
+                                    : 'Not provided',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.lock_outline,
+                          size: 16.sp,
+                          color: isDark
+                              ? Colors.white38
+                              : AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
                   ),
                   SizedBox(height: 16.h),
-                  _buildTextField(
-                    controller: _phoneController,
-                    label: 'Phone Number',
-                    icon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                    isDark: isDark,
+                  // Phone - Read-only
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 12.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(
+                        color: isDark ? Colors.white12 : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.phone_outlined,
+                          color: isDark
+                              ? Colors.white54
+                              : AppColors.textSecondary,
+                          size: 20.sp,
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Phone Number',
+                                style: TextStyle(
+                                  fontSize: 11.sp,
+                                  color: isDark
+                                      ? Colors.white54
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                              SizedBox(height: 2.h),
+                              Text(
+                                profile.phoneNumber.isNotEmpty &&
+                                        profile.phoneNumber != '-'
+                                    ? profile.phoneNumber
+                                    : 'Not provided',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.lock_outline,
+                          size: 16.sp,
+                          color: isDark
+                              ? Colors.white38
+                              : AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -659,6 +1210,22 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+
+        SizedBox(height: 16.h),
+
+        // Change Password
+        _buildSection(
+          context,
+          title: 'Change Password',
+          icon: Icons.lock_outline,
+          isDark: isDark,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(16.w),
+              child: _buildChangePasswordSection(context, state, isDark),
             ),
           ],
         ),
@@ -876,9 +1443,11 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                         .withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10.r),
                   ),
-                  child: Icon(icon,
-                      color: isDark ? AppColors.secondary : theme.primaryColor,
-                      size: 20.sp),
+                  child: Icon(
+                    icon,
+                    color: isDark ? AppColors.secondary : theme.primaryColor,
+                    size: 20.sp,
+                  ),
                 ),
                 SizedBox(width: 12.w),
                 Text(
@@ -921,7 +1490,9 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                   label,
                   style: TextStyle(
                     fontSize: 12.sp,
-                    color: isDark ? AppColors.secondary : AppColors.textSecondary,
+                    color: isDark
+                        ? AppColors.secondary
+                        : AppColors.textSecondary,
                   ),
                 ),
                 SizedBox(height: 2.h),
@@ -947,21 +1518,230 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     required IconData icon,
     required bool isDark,
     TextInputType? keyboardType,
+    FocusNode? focusNode,
+    bool obscureText = false,
+    Widget? suffixIcon,
   }) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
+      obscureText: obscureText,
       style: TextStyle(color: isDark ? Colors.white : AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon,
-            size: 22.sp,
-            color: isDark ? AppColors.secondary : Colors.grey.shade600),
+        prefixIcon: Icon(
+          icon,
+          size: 22.sp,
+          color: isDark ? AppColors.secondary : Colors.grey.shade600,
+        ),
+        suffixIcon: suffixIcon,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
         filled: true,
         fillColor: isDark
             ? Colors.white.withValues(alpha: 0.05)
             : Colors.grey.shade50,
+      ),
+    );
+  }
+
+  Widget _buildChangePasswordSection(
+    BuildContext context,
+    ProfileState state,
+    bool isDark,
+  ) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        _buildTextField(
+          controller: _oldPasswordController,
+          label: 'Old Password',
+          icon: Icons.lock_outline,
+          isDark: isDark,
+          focusNode: _oldPasswordFocusNode,
+          obscureText: _obscureOldPassword,
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscureOldPassword ? Icons.visibility_off : Icons.visibility,
+              color: isDark ? Colors.white54 : Colors.grey.shade600,
+            ),
+            onPressed: () {
+              setState(() {
+                _obscureOldPassword = !_obscureOldPassword;
+              });
+            },
+          ),
+        ),
+        SizedBox(height: 16.h),
+        _buildTextField(
+          controller: _newPasswordController,
+          label: 'New Password',
+          icon: Icons.lock,
+          isDark: isDark,
+          focusNode: _newPasswordFocusNode,
+          obscureText: _obscureNewPassword,
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscureNewPassword ? Icons.visibility_off : Icons.visibility,
+              color: isDark ? Colors.white54 : Colors.grey.shade600,
+            ),
+            onPressed: () {
+              setState(() {
+                _obscureNewPassword = !_obscureNewPassword;
+              });
+            },
+          ),
+        ),
+        SizedBox(height: 16.h),
+        _buildTextField(
+          controller: _confirmPasswordController,
+          label: 'Confirm New Password',
+          icon: Icons.lock_outline,
+          isDark: isDark,
+          focusNode: _confirmPasswordFocusNode,
+          obscureText: _obscureConfirmPassword,
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+              color: isDark ? Colors.white54 : Colors.grey.shade600,
+            ),
+            onPressed: () {
+              setState(() {
+                _obscureConfirmPassword = !_obscureConfirmPassword;
+              });
+            },
+          ),
+        ),
+        SizedBox(height: 20.h),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: state.status == ProfileStatus.loading
+                ? null
+                : () => _handleChangePassword(context),
+            icon: state.status == ProfileStatus.loading
+                ? SizedBox(
+                    width: 16.w,
+                    height: 16.w,
+                    child: const CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Icon(Icons.check_circle_outline, size: 20.sp),
+            label: Text(
+              state.status == ProfileStatus.loading
+                  ? 'Changing Password...'
+                  : 'Change Password',
+              style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 14.h),
+              backgroundColor: theme.primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+            ),
+          ),
+        ),
+        if (state.errorMessage != null &&
+            state.status == ProfileStatus.failure) ...[
+          SizedBox(height: 12.h),
+          Container(
+            padding: EdgeInsets.all(12.w),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8.r),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.error_outline, color: AppColors.error, size: 20.sp),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: Text(
+                    state.errorMessage!,
+                    style: TextStyle(color: AppColors.error, fontSize: 12.sp),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _handleChangePassword(BuildContext context) {
+    final oldPassword = _oldPasswordController.text.trim();
+    final newPassword = _newPasswordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    // Validation
+    if (oldPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter your old password'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      _oldPasswordFocusNode.requestFocus();
+      return;
+    }
+
+    if (newPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter a new password'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      _newPasswordFocusNode.requestFocus();
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'New password must be at least 6 characters long',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      _newPasswordFocusNode.requestFocus();
+      return;
+    }
+
+    if (newPassword != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('New passwords do not match'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      _confirmPasswordFocusNode.requestFocus();
+      return;
+    }
+
+    if (oldPassword == newPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'New password must be different from old password',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Trigger password change
+    context.read<ProfileBloc>().add(
+      PasswordChangeRequested(
+        oldPassword: oldPassword,
+        newPassword: newPassword,
       ),
     );
   }
@@ -1057,8 +1837,12 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     final isAvailable = await biometricService.isBiometricAvailable();
     final availableBiometrics = await biometricService.getAvailableBiometrics();
 
+    if (!mounted) return;
+
     if (!isAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
         SnackBar(
           content: const Text(
             'Biometric authentication is not available on this device',
@@ -1069,6 +1853,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
       return;
     }
 
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1140,6 +1925,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
 
               if (result.success) {
                 await authLocalDataSource.setBiometricEnabled(true);
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Biometric linked successfully!'),
@@ -1147,6 +1933,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                   ),
                 );
               } else {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(result.message),
@@ -1167,10 +1954,46 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
   }
 
   void _saveProfile(BuildContext context) {
+    final emergencyName = _emergencyNameController.text.trim();
+    final emergencyPhone = _emergencyPhoneController.text.trim();
+    final emergencyRelation = _emergencyRelationController.text.trim();
+
+    // Validate emergency contact fields
+    if (emergencyName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter emergency contact name'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (emergencyPhone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter emergency contact phone number'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (emergencyRelation.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter relationship'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     context.read<ProfileBloc>().add(
       ProfileContactUpdated(
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
+        emergencyName: emergencyName,
+        emergencyPhone: emergencyPhone,
+        emergencyRelation: emergencyRelation,
       ),
     );
   }

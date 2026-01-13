@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:lms/features/attendance/domain/entities/biometric_attendance.dart';
 
 import '../../core/config/app_config.dart';
@@ -26,6 +27,10 @@ abstract class LmsRemoteDataSource {
   Future<BiometricAttendanceResponse> markBiometricAttendance(
     BiometricAttendanceRequest request,
   );
+  Future<bool> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  });
 }
 
 class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
@@ -41,81 +46,111 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       return _mockApiService.fetchDashboard();
     }
 
-    // Get phone number from secure storage (stored during login)
+    // Get card_no1 from secure storage (stored during login)
     final secureStorage = getIt<SecureStorageService>();
-    final phoneNumber = await secureStorage.read('phone_number');
+    final cardNo1 = await secureStorage.read('card_no1');
 
-    if (phoneNumber == null || phoneNumber.isEmpty) {
-      throw Exception('Phone number not found. Please login again.');
+    if (cardNo1 == null || cardNo1.isEmpty) {
+      throw Exception('Card number not found. Please login again.');
     }
 
-    // Clean phone number (remove spaces, dashes, etc.)
-    final cleanPhoneNumber = phoneNumber.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-    print('=== FETCHING DASHBOARD ===');
-    print('Phone number from storage: $phoneNumber');
-    print('Cleaned phone number: $cleanPhoneNumber');
-    print('API URL: /data/$cleanPhoneNumber');
+    debugPrint('=== FETCHING DASHBOARD ===');
+    debugPrint('Card number from storage: $cardNo1');
+    debugPrint('API URL: /data/$cardNo1');
 
     try {
-      // Call real API: /data/{phoneNumber}
+      // Call real API: /data/{card_no1}
       final response = await _client.get<Map<String, dynamic>>(
-        '/data/$cleanPhoneNumber',
+        '/data/$cardNo1',
       );
 
-      print('API Response received');
-      final data = response.data;
-      if (data == null) {
-        print('ERROR: Response data is null');
+      debugPrint('API Response received');
+      final responseData = response.data;
+      if (responseData == null) {
+        debugPrint('ERROR: Response data is null');
         throw Exception('Invalid response from server');
       }
+      debugPrint('Response data: $responseData');
 
-      print('Response data: $data');
-      final header = data['header'] as Map<String, dynamic>?;
-      final body = data['body'] as Map<String, dynamic>?;
+      // API returns data in 'items' array format (ORDS REST API format)
+      Map<String, dynamic>? body;
 
-      if (header == null || body == null) {
-        print('ERROR: Header or body is null');
-        print('Header: $header');
-        print('Body: $body');
-        throw Exception('Invalid response format');
+      // Check if response has 'items' array (ORDS format)
+      if (responseData.containsKey('items')) {
+        final items = responseData['items'] as List<dynamic>?;
+        if (items != null && items.isNotEmpty) {
+          body = items[0] as Map<String, dynamic>?;
+          debugPrint(
+            'Dashboard: Found items array with ${items.length} item(s), using first item',
+          );
+        } else {
+          debugPrint('Dashboard: ERROR - Items array is empty');
+          throw Exception('No dashboard data found in response');
+        }
+      } else if (responseData.containsKey('body')) {
+        // Fallback to 'body' format if present
+        body = responseData['body'] as Map<String, dynamic>?;
+        debugPrint('Dashboard: Found body structure');
+      } else {
+        // If response is directly the data object
+        body = responseData;
+        debugPrint('Dashboard: Response is directly the data structure');
       }
 
-      print('Response header code: ${header['code']}');
-      print('Response header message: ${header['message']}');
-      print('Response body: $body');
-
-      if (header['code'] != 100) {
-        final errorMsg =
-            header['message'] as String? ?? 'Failed to fetch dashboard';
-        print('ERROR: API returned error code ${header['code']}: $errorMsg');
-        throw Exception(errorMsg);
+      if (body == null) {
+        debugPrint('Dashboard: ERROR - Could not extract data from response');
+        throw Exception('Invalid response: Missing data');
       }
 
-      // Map response to DashboardSummary
-      print('Mapping response to DashboardSummary...');
+      // Helper functions for safe parsing
+      int safeInt(dynamic value) {
+        if (value == null) return 0;
+        if (value is int) return value;
+        if (value is String) {
+          return int.tryParse(value) ?? 0;
+        }
+        return 0;
+      }
+
+      String safeString(dynamic value) {
+        if (value == null) return '-';
+        final str = value.toString().trim();
+        return str.isEmpty ? '-' : str;
+      }
+
+      // Map response to DashboardSummary with all fields
+      debugPrint('Mapping response to DashboardSummary...');
       final summary = DashboardSummary(
-        userName: body['emp_name'] as String? ?? 'N/A',
-        employeeCode: body['emp_no'] as String? ?? 'N/A',
-        cadre: body['designation'] as String? ?? 'N/A',
-        designation: body['designation'] as String? ?? 'N/A',
-        department: body['department'] as String? ?? 'N/A',
-        location: body['compcnm'] as String? ?? 'N/A',
-        cardNumber: body['card_no1'] as String? ?? 'N/A',
-        balances: const [], // Leave balances would come from separate API
+        empPk: safeInt(body['emp_pk']),
+        cardNo1: safeString(body['card_no1']),
+        empNo: safeString(body['emp_no']),
+        empName: safeString(body['emp_name']),
+        dateOfJoin: safeString(body['date_of_join']),
+        nicNo: safeString(body['nic_no']),
+        designation: safeString(body['designation']),
+        department: safeString(body['department']),
+        compcnm: safeString(body['compcnm']),
+        compc: safeInt(body['compc']),
+        branch: safeInt(body['branch']),
+        brnchnm: safeString(body['brnchnm']),
+        hod: safeInt(body['hod']),
+        hodNm: safeString(body['hod_nm']),
+        balances:
+            const [], // Leave balances will be fetched separately and merged
       );
 
-      print('=== DASHBOARD SUMMARY CREATED ===');
-      print('User Name: ${summary.userName}');
-      print('Employee Code: ${summary.employeeCode}');
-      print('Designation: ${summary.designation}');
-      print('Department: ${summary.department}');
-      print('Location: ${summary.location}');
+      debugPrint('=== DASHBOARD SUMMARY CREATED ===');
+      debugPrint('Employee Name: ${summary.empName}');
+      debugPrint('Employee Code: ${summary.empNo}');
+      debugPrint('Designation: ${summary.designation}');
+      debugPrint('Department: ${summary.department}');
+      debugPrint('Branch: ${summary.brnchnm}');
 
       return summary;
     } catch (e, stackTrace) {
-      print('=== DASHBOARD API ERROR ===');
-      print('Error: $e');
-      print('Stack trace: $stackTrace');
+      debugPrint('=== DASHBOARD API ERROR ===');
+      debugPrint('Error: $e');
+      debugPrint('Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -125,8 +160,61 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
     if (_config.useMockData) {
       return _mockApiService.fetchBalances();
     }
-    final response = await _client.get<List<dynamic>>('/leave/balances');
-    throw UnimplementedError('Map leave balances ${response.data}');
+
+    // Get card_no1 from secure storage
+    final secureStorage = getIt<SecureStorageService>();
+    final cardNo1 = await secureStorage.read('card_no1');
+
+    if (cardNo1 == null || cardNo1.isEmpty) {
+      throw Exception('Card number not found. Please login again.');
+    }
+
+    try {
+      final response = await _client.get<Map<String, dynamic>>(
+        '/leave_data/$cardNo1',
+      );
+
+      final responseData = response.data;
+      if (responseData == null) {
+        throw Exception('Invalid response from server');
+      }
+
+      // API returns data in 'items' array format (ORDS REST API format)
+      List<dynamic> items = [];
+
+      // Check if response has 'body' with 'items' array
+      if (responseData.containsKey('body')) {
+        final body = responseData['body'] as Map<String, dynamic>?;
+        if (body != null && body.containsKey('items')) {
+          items = body['items'] as List<dynamic>? ?? [];
+        }
+      } else if (responseData.containsKey('items')) {
+        // Items at root level
+        items = responseData['items'] as List<dynamic>? ?? [];
+      }
+
+      // Map items to LeaveBalance entities
+      return items.map((item) {
+        final json = item as Map<String, dynamic>;
+        final code = (json['leave_type'] ?? '').toString();
+        final name = (json['leave_desc'] ?? json['leave_type'] ?? '')
+            .toString();
+        final balanceValue =
+            json['balance'] ??
+            json['available'] ??
+            json['total_available'] ??
+            0;
+        final balance = (balanceValue is num)
+            ? balanceValue.round()
+            : (int.tryParse(balanceValue.toString()) ?? 0);
+
+        return LeaveBalance(code: code, name: name, balance: balance);
+      }).toList();
+    } catch (e, stackTrace) {
+      debugPrint('LeaveBalances API Error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   @override
@@ -184,10 +272,164 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
     if (_config.useMockData) {
       return _mockApiService.fetchProfile();
     }
-    final response = await _client.get<Map<String, dynamic>>(
-      '/employee/profile',
-    );
-    throw UnimplementedError('Map profile ${response.data}');
+
+    // Get card_no1 from secure storage
+    final secureStorage = getIt<SecureStorageService>();
+    final cardNo1 = await secureStorage.read('card_no1');
+
+    if (cardNo1 == null || cardNo1.isEmpty) {
+      throw Exception('Card number not found. Please login again.');
+    }
+
+    try {
+      final response = await _client.get<Map<String, dynamic>>(
+        '/profile/$cardNo1',
+      );
+
+      final responseData = response.data;
+      if (responseData == null) {
+        throw Exception('Invalid response from server');
+      }
+
+      // API returns data in 'body' format (ORDS REST API format)
+      Map<String, dynamic>? body;
+      if (responseData.containsKey('body')) {
+        body = responseData['body'] as Map<String, dynamic>?;
+      } else if (responseData.containsKey('items')) {
+        final items = responseData['items'] as List<dynamic>?;
+        if (items != null && items.isNotEmpty) {
+          body = items[0] as Map<String, dynamic>?;
+        }
+      } else {
+        // If response is directly the data object
+        body = responseData as Map<String, dynamic>?;
+      }
+
+      debugPrint('Profile API Response: $responseData');
+      debugPrint('Profile API Body: $body');
+
+      if (body == null) {
+        throw Exception('Invalid response: Missing data');
+      }
+
+      // Helper functions for safe parsing
+      String safeString(dynamic value) {
+        if (value == null) return '-';
+        final str = value.toString().trim();
+        return str.isEmpty ? '-' : str;
+      }
+
+      DateTime? safeDate(dynamic value) {
+        if (value == null) return null;
+        try {
+          if (value is String) {
+            return DateTime.parse(value);
+          }
+          if (value is int) {
+            // Handle timestamp
+            return DateTime.fromMillisecondsSinceEpoch(value);
+          }
+        } catch (e) {
+          return null;
+        }
+        return null;
+      }
+
+      // Parse reporting manager from hod_nm and hod2
+      // hod2 represents the phone number of the HOD
+      ReportingManager? reportingTo;
+      final hodNm = safeString(body['hod_nm']);
+      final hod2 = body['hod2'];
+      if (hodNm.isNotEmpty && hodNm != '-' && hod2 != null) {
+        reportingTo = ReportingManager(
+          id: safeString(hod2), // Use hod2 as ID (phone number)
+          name: hodNm,
+          designation: '', // Remove designation as per requirements
+          phoneNumber: safeString(hod2), // hod2 is the phone number
+        );
+      }
+
+      // Parse emergency_contact (not in API response, but keep structure)
+      EmergencyContact? emergencyContact;
+      // API doesn't provide emergency contact, so leave as null
+
+      // Helper for safe int parsing
+      int? safeInt(dynamic value) {
+        if (value == null) return null;
+        if (value is int) return value;
+        if (value is String) {
+          return int.tryParse(value);
+        }
+        if (value is num) {
+          return value.toInt();
+        }
+        return null;
+      }
+
+      return EnhancedProfileEntity(
+        id: safeString(body['emp_pk']),
+        employeeCode: safeString(body['emp_no']),
+        name: safeString(body['emp_name']),
+        email: safeString(body['email_address']),
+        phoneNumber: safeString(body['mobile_no']),
+        gender: safeString(body['gender'] ?? 'M'), // Not in API, default to M
+        dateOfBirth: safeDate(body['date_of_birth']) ?? DateTime.now(),
+        joiningDate: safeDate(body['date_of_join']) ?? DateTime.now(),
+        department: safeString(body['department']),
+        designation: safeString(body['designation']),
+        cadre: safeString(body['cadre']),
+        location: safeString(body['brnchnm']),
+        branch: safeString(body['brnchnm']),
+        cardNumber: safeString(body['card_no1'] ?? body['card_no']),
+        reportingTo: reportingTo,
+        emergencyContact: emergencyContact,
+        workSchedule: WorkSchedule.defaultSchedule,
+        // Additional fields from API
+        fatherName:
+            safeString(body['father_name']).isNotEmpty &&
+                safeString(body['father_name']) != '-'
+            ? safeString(body['father_name'])
+            : null,
+        nicNo:
+            safeString(body['nic_no']).isNotEmpty &&
+                safeString(body['nic_no']) != '-'
+            ? safeString(body['nic_no'])
+            : null,
+        nicExpDate: safeDate(body['nic_exp_date']),
+        eobiNo:
+            safeString(body['eobi_no']).isNotEmpty &&
+                safeString(body['eobi_no']) != '-'
+            ? safeString(body['eobi_no'])
+            : null,
+        uicCardNo:
+            safeString(body['uic_card_no']).isNotEmpty &&
+                safeString(body['uic_card_no']) != '-'
+            ? safeString(body['uic_card_no'])
+            : null,
+        salary: safeInt(body['salary']),
+        managerAboveSts:
+            safeString(body['manager_above_sts']).isNotEmpty &&
+                safeString(body['manager_above_sts']) != '-'
+            ? safeString(body['manager_above_sts'])
+            : null,
+        confirmationDate: safeDate(body['confirmation_date']),
+        companyAccommodation:
+            safeString(body['company_accomodation']).isNotEmpty &&
+                safeString(body['company_accomodation']) != '-'
+            ? safeString(body['company_accomodation'])
+            : null,
+        compcnm:
+            safeString(body['compcnm']).isNotEmpty &&
+                safeString(body['compcnm']) != '-'
+            ? safeString(body['compcnm'])
+            : null,
+        compc: safeInt(body['compc']),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('Profile API Error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   @override
@@ -238,5 +480,58 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
             'header': {'code': 500, 'message': 'Unknown error'},
           },
     );
+  }
+
+  @override
+  Future<bool> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    if (_config.useMockData) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      return true;
+    }
+
+    // Get card_no1 from secure storage
+    final secureStorage = getIt<SecureStorageService>();
+    final cardNo1 = await secureStorage.read('card_no1');
+
+    if (cardNo1 == null || cardNo1.isEmpty) {
+      throw Exception('Card number not found. Please login again.');
+    }
+
+    try {
+      final response = await _client.post<Map<String, dynamic>>(
+        '/profile/change-password',
+        data: {'old_password': oldPassword, 'new_password': newPassword},
+      );
+
+      final responseData = response.data;
+      if (responseData == null) {
+        throw Exception('Invalid response from server');
+      }
+
+      // Check response format
+      final header = responseData['header'] as Map<String, dynamic>?;
+      final body = responseData['body'] as Map<String, dynamic>?;
+
+      final success =
+          header?['code'] == 100 ||
+          body?['success'] == true ||
+          response.statusCode == 200;
+
+      if (success) {
+        return true;
+      } else {
+        final errorMessage =
+            header?['message'] as String? ??
+            body?['message'] as String? ??
+            'Failed to change password';
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      debugPrint('Change password error: $e');
+      rethrow;
+    }
   }
 }

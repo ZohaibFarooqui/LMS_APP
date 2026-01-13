@@ -12,11 +12,29 @@ class ProfileRequested extends ProfileEvent {
 }
 
 class ProfileContactUpdated extends ProfileEvent {
-  const ProfileContactUpdated({required this.email, required this.phone});
+  const ProfileContactUpdated({
+    required this.emergencyName,
+    required this.emergencyPhone,
+    required this.emergencyRelation,
+  });
 
-  final String email;
-  final String phone;
+  final String emergencyName;
+  final String emergencyPhone;
+  final String emergencyRelation;
 
   @override
-  List<Object?> get props => [email, phone];
+  List<Object?> get props => [emergencyName, emergencyPhone, emergencyRelation];
+}
+
+class PasswordChangeRequested extends ProfileEvent {
+  const PasswordChangeRequested({
+    required this.oldPassword,
+    required this.newPassword,
+  });
+
+  final String oldPassword;
+  final String newPassword;
+
+  @override
+  List<Object?> get props => [oldPassword, newPassword];
 }

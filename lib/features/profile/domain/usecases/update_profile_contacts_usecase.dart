@@ -6,8 +6,15 @@ class UpdateProfileContactsUseCase {
 
   final EnhancedProfileRepository _repository;
 
-  Future<EnhancedProfileEntity> call({required String email, required String phone}) {
-    return _repository.updateContacts(email: email, phone: phone);
+  Future<EnhancedProfileEntity> call({
+    required String emergencyName,
+    required String emergencyPhone,
+    required String emergencyRelation,
+  }) {
+    return _repository.updateEmergencyContact(
+      name: emergencyName,
+      phone: emergencyPhone,
+      relationship: emergencyRelation,
+    );
   }
 }
-

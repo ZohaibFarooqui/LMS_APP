@@ -7,6 +7,8 @@ import '../../features/geofence/domain/entities/geofence_status.dart';
 import '../config/app_config.dart';
 import 'location_service.dart';
 
+// ignore_for_file: todo
+
 /// Configuration for geofence monitoring behavior
 class GeoFenceConfig {
   const GeoFenceConfig({

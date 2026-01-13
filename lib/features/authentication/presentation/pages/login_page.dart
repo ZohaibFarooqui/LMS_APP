@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+// ignore_for_file: todo
+
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/biometric_service.dart';
 import '../../../../di/service_locator.dart';
@@ -23,13 +25,33 @@ import '../widgets/slide_fade_animation.dart';
 /// - Glassmorphism card design
 /// - BLoC state management
 /// - Dark mode support
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  late final LoginFormBloc _loginFormBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create LoginFormBloc once and preserve it
+    _loginFormBloc = LoginFormBloc();
+  }
+
+  @override
+  void dispose() {
+    _loginFormBloc.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => LoginFormBloc(),
+    return BlocProvider.value(
+      value: _loginFormBloc,
       child: const _LoginPageContent(),
     );
   }
@@ -111,20 +133,36 @@ class _LoginPageContentState extends State<_LoginPageContent> {
   }
 
   void _handleLogin() {
-    final loginFormBloc = context.read<LoginFormBloc>();
-    loginFormBloc.add(const LoginFormSubmitted());
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-    // If form is valid, trigger actual login
-    final formState = loginFormBloc.state;
-    if (formState.username.isNotEmpty && formState.password.isNotEmpty) {
-      context.read<AuthBloc>().add(
-        LoginRequested(
-          username: formState.username,
-          password: formState.password,
-          rememberMe: formState.rememberMe,
-        ),
-      );
+    // Validate that fields are not empty
+    if (username.isEmpty || password.isEmpty) {
+      final loginFormBloc = context.read<LoginFormBloc>();
+      loginFormBloc.add(const LoginFormSubmitted());
+      return;
     }
+
+    // Update LoginFormBloc with current values to keep state in sync
+    final loginFormBloc = context.read<LoginFormBloc>();
+    if (loginFormBloc.state.username != username) {
+      loginFormBloc.add(LoginUsernameChanged(username));
+    }
+    if (loginFormBloc.state.password != password) {
+      loginFormBloc.add(LoginPasswordChanged(password));
+    }
+
+    // Get remember me state from LoginFormBloc
+    final formState = loginFormBloc.state;
+
+    // Trigger actual login with controller values
+    context.read<AuthBloc>().add(
+      LoginRequested(
+        username: username,
+        password: password,
+        rememberMe: formState.rememberMe,
+      ),
+    );
   }
 
   @override
@@ -132,34 +170,107 @@ class _LoginPageContentState extends State<_LoginPageContent> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: BlocListener<AuthBloc, AuthState>(
+        listenWhen: (previous, current) {
+          // Always listen to state changes to catch all transitions
+          final shouldListen =
+              previous.status != current.status ||
+              previous.errorMessage != current.errorMessage ||
+              previous.user != current.user;
+
+          if (shouldListen) {
+            debugPrint(
+              'LoginPage BlocListener: Status changed from ${previous.status} to ${current.status}, '
+              'Error: ${current.errorMessage}, User: ${current.user?.id}',
+            );
+          }
+
+          return shouldListen;
+        },
         listener: (context, state) {
-          if (state.status == AuthStatus.failure &&
-              state.errorMessage != null) {
-            // Show error snackbar
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.white),
-                    SizedBox(width: 12.w),
-                    Expanded(
-                      child: Text(
-                        state.errorMessage!,
-                        style: const TextStyle(color: Colors.white),
+          debugPrint(
+            'LoginPage BlocListener: Handling state - Status: ${state.status}, '
+            'Error: ${state.errorMessage}, User: ${state.user?.id}',
+          );
+
+          // Sync LoginFormBloc with AuthBloc state changes
+          final loginFormBloc = context.read<LoginFormBloc>();
+
+          // Handle login failure - show error message AND update LoginFormBloc
+          if (state.status == AuthStatus.failure) {
+            final errorMessage =
+                state.errorMessage ?? 'Login failed. Please try again.';
+
+            debugPrint('LoginPage: Login failed - $errorMessage');
+
+            // Update LoginFormBloc to reflect failure
+            loginFormBloc.loginFailure(errorMessage);
+
+            // Show error message immediately (don't wait for post frame)
+            if (mounted) {
+              // Clear any existing snackbars first
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.clearSnackBars();
+
+              // Capture theme/color values to avoid using BuildContext across async gap
+              final bgColor = Theme.of(context).colorScheme.error;
+              final snackMargin = EdgeInsets.all(16.w);
+              final snackShape = RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              );
+
+              // Use a small delay to ensure UI is ready
+              Future.delayed(const Duration(milliseconds: 100), () {
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.white),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: Text(
+                              errorMessage,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: bgColor,
+                      behavior: SnackBarBehavior.floating,
+                      shape: snackShape,
+                      margin: snackMargin,
+                      duration: const Duration(seconds: 5),
+                      action: SnackBarAction(
+                        label: 'Dismiss',
+                        textColor: Colors.white,
+                        onPressed: () {
+                          messenger.hideCurrentSnackBar();
+                        },
                       ),
                     ),
-                  ],
-                ),
-                backgroundColor: Theme.of(context).colorScheme.error,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                ),
-                margin: EdgeInsets.all(16.w),
-              ),
+                  );
+                }
+              });
+            }
+          }
+
+          // Handle loading state - update LoginFormBloc
+          if (state.status == AuthStatus.loading) {
+            // LoginFormBloc should already be in submitting state, but ensure it
+            if (loginFormBloc.state.status != LoginFormStatus.submitting) {
+              loginFormBloc.add(const LoginFormSubmitted());
+            }
+          }
+
+          // Handle successful login - update LoginFormBloc and navigate
+          if (state.status == AuthStatus.authenticated) {
+            debugPrint(
+              'LoginPage: Login successful! User: ${state.user?.id}, '
+              'Navigation should happen via _AppRouter',
             );
-            // Reset form status
-            context.read<LoginFormBloc>().loginFailure(state.errorMessage!);
+            // Update LoginFormBloc to reflect success
+            loginFormBloc.loginSuccess();
+            // Navigation is handled automatically by _AppRouter listening to AuthBloc
           }
         },
         child: AnimatedBackground(
@@ -238,7 +349,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                   horizontal: isTablet ? 32.w : 20.w,
                   vertical: isTablet ? 32.h : (isSmallScreen ? 16.h : 20.h),
                 ),
-                child: _buildLoginForm(context, isTablet),
+                child: _buildLoginForm(context, isTablet, isSmallScreen),
               ),
             ),
           ),
@@ -271,15 +382,31 @@ class _LoginPageContentState extends State<_LoginPageContent> {
     );
   }
 
-  Widget _buildLoginForm(BuildContext context, bool isTablet) {
+  Widget _buildLoginForm(
+    BuildContext context,
+    bool isTablet,
+    bool isSmallScreen,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isSmallScreen = screenHeight < 700;
 
     return BlocBuilder<LoginFormBloc, LoginFormState>(
+      buildWhen: (previous, current) {
+        // Only rebuild when form state actually changes
+        return previous.username != current.username ||
+            previous.password != current.password ||
+            previous.isPasswordVisible != current.isPasswordVisible ||
+            previous.rememberMe != current.rememberMe ||
+            previous.status != current.status ||
+            previous.usernameError != current.usernameError ||
+            previous.passwordError != current.passwordError;
+      },
       builder: (context, formState) {
         return BlocBuilder<AuthBloc, AuthState>(
+          buildWhen: (previous, current) {
+            // Only rebuild when auth status changes
+            return previous.status != current.status;
+          },
           builder: (context, authState) {
             final isLoading =
                 authState.status == AuthStatus.loading ||
@@ -425,7 +552,9 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                                     : Colors.grey.shade400,
                                 width: 1.5,
                               ),
-                              activeColor: isDark ? AppColors.secondary : theme.primaryColor,
+                              activeColor: isDark
+                                  ? AppColors.secondary
+                                  : theme.primaryColor,
                             ),
                           ),
                           SizedBox(width: 6.w),
@@ -469,7 +598,9 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                           'Forgot Password?',
                           style: TextStyle(
                             fontSize: 12.sp,
-                            color: isDark ? AppColors.secondary : theme.primaryColor,
+                            color: isDark
+                                ? AppColors.secondary
+                                : theme.primaryColor,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
