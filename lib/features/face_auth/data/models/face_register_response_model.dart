@@ -12,11 +12,9 @@ class FaceRegisterResponseModel extends FaceRegisterResponse {
     final body = json['body'] as Map<String, dynamic>? ?? json;
     return FaceRegisterResponseModel(
       status: body['status'] as String? ?? 'ERROR',
-      cardNo1: body['card_no1'] as String? ?? '',
+      cardNo1: body['card_no1'] as String? ?? body['card_no'] as String? ?? '',
       alreadyRegistered: body['already_registered'] as bool? ?? false,
       message: body['msg'] as String? ?? body['message'] as String?,
     );
   }
 }
-
-

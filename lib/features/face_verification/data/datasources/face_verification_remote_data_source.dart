@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../core/network/dio_client.dart';
+import '../../../../core/config/app_config.dart';
 import '../../domain/entities/face_embedding.dart';
 
 /// Remote data source for face verification backend APIs
@@ -67,8 +67,18 @@ class FaceVerificationResponse {
 
 class FaceVerificationRemoteDataSourceImpl
     implements FaceVerificationRemoteDataSource {
-  FaceVerificationRemoteDataSourceImpl({Dio? dio})
-    : _dio = dio ?? DioClient.instance;
+  FaceVerificationRemoteDataSourceImpl({Dio? dio, AppConfig? config})
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: (config ?? const AppConfig()).faceAuthBaseUrl,
+              connectTimeout: const Duration(seconds: 30),
+              receiveTimeout: const Duration(seconds: 30),
+              contentType: 'application/json',
+              responseType: ResponseType.json,
+            ),
+          );
 
   final Dio _dio;
 

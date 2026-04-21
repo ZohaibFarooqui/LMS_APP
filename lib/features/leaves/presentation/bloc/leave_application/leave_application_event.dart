@@ -44,6 +44,24 @@ class LeaveHalfDayToggled extends LeaveApplicationEvent {
   List<Object?> get props => [halfDay];
 }
 
+class LeaveFromTimeChanged extends LeaveApplicationEvent {
+  const LeaveFromTimeChanged(this.fromTime);
+
+  final TimeOfDay fromTime;
+
+  @override
+  List<Object?> get props => [fromTime];
+}
+
+class LeaveToTimeChanged extends LeaveApplicationEvent {
+  const LeaveToTimeChanged(this.toTime);
+
+  final TimeOfDay toTime;
+
+  @override
+  List<Object?> get props => [toTime];
+}
+
 class LeaveSubmitted extends LeaveApplicationEvent {
   const LeaveSubmitted();
 }

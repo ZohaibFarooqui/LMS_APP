@@ -12,8 +12,8 @@ class RegisterFaceUseCase {
     required List<String> frames,
     required DateTime createdAt,
   }) async {
-    if (frames.length < 10) {
-      throw Exception('Minimum 10 frames required for registration');
+    if (frames.length < 8) {
+      throw Exception('Minimum 8 frames required for registration');
     }
 
     return await _repository.registerFace(

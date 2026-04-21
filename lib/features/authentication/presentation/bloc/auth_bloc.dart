@@ -51,6 +51,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(status: AuthStatus.loading));
     final user = await _getCachedUserUseCase();
     final rememberedUsername = await _authRepository.rememberedUsername();
+    final rememberedPassword = await _authRepository.rememberedPassword();
     final biometricEnabled = await _authRepository.isBiometricEnabled();
     if (user != null) {
       emit(
@@ -59,6 +60,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           user: user,
           biometricEnabled: biometricEnabled,
           rememberedUsername: rememberedUsername,
+          rememberedPassword: rememberedPassword,
         ),
       );
     } else {
@@ -67,6 +69,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           status: AuthStatus.unauthenticated,
           biometricEnabled: biometricEnabled,
           rememberedUsername: rememberedUsername,
+          rememberedPassword: rememberedPassword,
         ),
       );
     }
@@ -97,6 +100,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _authRepository.setRememberMe(
         event.rememberMe,
         username: event.username,
+        password: event.password,
       );
 
       // Get biometric enabled state

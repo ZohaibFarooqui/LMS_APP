@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppButton extends StatelessWidget {
   const AppButton({
@@ -19,18 +20,18 @@ class AppButton extends StatelessWidget {
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       child: isLoading
-          ? const SizedBox(
-              height: 24,
-              width: 24,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+          ? SizedBox(
+              height: 24.h,
+              width: 24.h,
+              child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             )
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 18),
-                  const SizedBox(width: 8),
+                  Icon(icon, size: 18.sp),
+                  SizedBox(width: 8.w),
                 ],
                 Text(label),
               ],
@@ -38,4 +39,3 @@ class AppButton extends StatelessWidget {
     );
   }
 }
-

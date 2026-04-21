@@ -207,7 +207,8 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
 
   Widget _buildBackground() {
     return Image.asset(
-      'lib/assets/images/login-bgg.jpg',
+      // 'lib/assets/images/login-bgg.jpg',
+      'lib/assets/images/bg.png',
       fit: BoxFit.cover,
       filterQuality: FilterQuality.high,
       errorBuilder: (context, error, stackTrace) {

@@ -9,6 +9,8 @@ class LeaveApplicationState extends Equatable {
     required this.toDate,
     required this.reason,
     required this.halfDay,
+    this.fromTime,
+    this.toTime,
     this.status = LeaveApplicationStatus.idle,
     this.errorMessage,
   });
@@ -18,6 +20,8 @@ class LeaveApplicationState extends Equatable {
   final DateTime toDate;
   final String reason;
   final bool halfDay;
+  final TimeOfDay? fromTime;
+  final TimeOfDay? toTime;
   final LeaveApplicationStatus status;
   final String? errorMessage;
 
@@ -29,6 +33,8 @@ class LeaveApplicationState extends Equatable {
       toDate: now,
       reason: '',
       halfDay: false,
+      fromTime: null,
+      toTime: null,
     );
   }
 
@@ -38,6 +44,8 @@ class LeaveApplicationState extends Equatable {
     DateTime? toDate,
     String? reason,
     bool? halfDay,
+    TimeOfDay? fromTime,
+    TimeOfDay? toTime,
     LeaveApplicationStatus? status,
     String? errorMessage,
   }) {
@@ -47,12 +55,14 @@ class LeaveApplicationState extends Equatable {
       toDate: toDate ?? this.toDate,
       reason: reason ?? this.reason,
       halfDay: halfDay ?? this.halfDay,
+      fromTime: fromTime ?? this.fromTime,
+      toTime: toTime ?? this.toTime,
       status: status ?? this.status,
       errorMessage: errorMessage,
     );
   }
 
   @override
-  List<Object?> get props => [leaveType, fromDate, toDate, reason, halfDay, status, errorMessage];
+  List<Object?> get props => [leaveType, fromDate, toDate, reason, halfDay, fromTime, toTime, status, errorMessage];
 }
 

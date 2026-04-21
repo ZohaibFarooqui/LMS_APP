@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/config/app_config.dart';
+import '../models/face_identify_response_model.dart';
 import '../models/face_register_response_model.dart';
 import '../models/face_status_response_model.dart';
 import '../models/face_verify_response_model.dart';
@@ -20,6 +21,10 @@ abstract class FaceRemoteDataSource {
   });
 
   Future<FaceStatusResponseModel> getFaceStatus(String cardNo1);
+
+  Future<FaceIdentifyResponseModel> identifyFace({
+    required List<String> frames,
+  });
 }
 
 class FaceRemoteDataSourceImpl implements FaceRemoteDataSource {
@@ -48,12 +53,12 @@ class FaceRemoteDataSourceImpl implements FaceRemoteDataSource {
   }) async {
     try {
       debugPrint(
-        'FaceRemoteDataSource: Registering face for card_no1: $cardNo1 with ${frames.length} frames',
+        'FaceRemoteDataSource: Registering face for card_no: $cardNo1 with ${frames.length} frames',
       );
       debugPrint('FaceRemoteDataSource: Backend URL: ${_dio.options.baseUrl}');
 
-      if (frames.length < 10) {
-        throw Exception('Minimum 10 frames required for registration');
+      if (frames.length < 5) {
+        throw Exception('Minimum 5 frames required for registration');
       }
 
       final requestData = {
@@ -109,11 +114,11 @@ class FaceRemoteDataSourceImpl implements FaceRemoteDataSource {
   }) async {
     try {
       debugPrint(
-        'FaceRemoteDataSource: Verifying face for card_no1: $cardNo1 with ${frames.length} frames',
+        'FaceRemoteDataSource: Verifying face for card_no: $cardNo1 with ${frames.length} frames',
       );
 
-      if (frames.length < 5) {
-        throw Exception('Minimum 5 frames required for verification');
+      if (frames.length < 3) {
+        throw Exception('Minimum 3 frames required for verification');
       }
 
       final requestData = {'card_no1': cardNo1, 'frames': frames};
@@ -157,7 +162,7 @@ class FaceRemoteDataSourceImpl implements FaceRemoteDataSource {
   Future<FaceStatusResponseModel> getFaceStatus(String cardNo1) async {
     try {
       debugPrint(
-        'FaceRemoteDataSource: Checking face status for card_no1: $cardNo1',
+        'FaceRemoteDataSource: Checking face status for card_no: $cardNo1',
       );
 
       final response = await _dio.get<Map<String, dynamic>>(
@@ -192,6 +197,49 @@ class FaceRemoteDataSourceImpl implements FaceRemoteDataSource {
       debugPrint('FaceRemoteDataSource: Unexpected error: $e');
       // Default to not registered on error
       return FaceStatusResponseModel.notRegistered();
+    }
+  }
+
+  @override
+  Future<FaceIdentifyResponseModel> identifyFace({
+    required List<String> frames,
+  }) async {
+    try {
+      debugPrint(
+        'FaceRemoteDataSource: Identifying face with ${frames.length} frames',
+      );
+
+      if (frames.length < 5) {
+        throw Exception('Minimum 5 frames required for identification');
+      }
+
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/face/identify',
+        data: {'frames': frames},
+      );
+
+      debugPrint(
+        'FaceRemoteDataSource: Identify response: ${response.data}',
+      );
+
+      return FaceIdentifyResponseModel.fromJson(response.data ?? {});
+    } on DioException catch (e) {
+      debugPrint('FaceRemoteDataSource: Identify error: ${e.message}');
+
+      if (e.response?.data != null) {
+        try {
+          return FaceIdentifyResponseModel.fromJson(e.response!.data!);
+        } catch (_) {}
+      }
+
+      throw Exception(
+        e.response?.data?['body']?['message'] as String? ??
+            e.response?.data?['message'] as String? ??
+            'Failed to identify face: ${e.message}',
+      );
+    } catch (e) {
+      debugPrint('FaceRemoteDataSource: Unexpected error: $e');
+      rethrow;
     }
   }
 }

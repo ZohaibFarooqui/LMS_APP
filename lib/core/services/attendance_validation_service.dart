@@ -15,10 +15,21 @@ class AttendanceValidationService {
 
   final SharedPreferences _prefs;
 
-  static const String _checkInHistoryKey = 'check_in_history';
-  static const String _checkOutKey = 'last_check_out_date';
-  static const String _checkOutTimeKey = 'last_check_out_time';
-  static const String _checkOutLocationKey = 'last_check_out_location';
+  /// Current user identifier — set before each attendance flow so that
+  /// check-in / check-out history is scoped per employee, not per device.
+  String _currentUserId = '';
+
+  void setCurrentUser(String userId) {
+    _currentUserId = userId;
+  }
+
+  /// Per-user prefix so different employees on the same phone don't clash.
+  String get _prefix => _currentUserId.isNotEmpty ? '${_currentUserId}_' : '';
+
+  String get _checkInHistoryKey => '${_prefix}check_in_history';
+  String get _checkOutKey => '${_prefix}last_check_out_date';
+  String get _checkOutTimeKey => '${_prefix}last_check_out_time';
+  String get _checkOutLocationKey => '${_prefix}last_check_out_location';
 
   final _dateFormat = DateFormat('yyyy-MM-dd');
   final _timeFormat = DateFormat('HH:mm:ss');

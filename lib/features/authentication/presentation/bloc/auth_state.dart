@@ -9,6 +9,7 @@ class AuthState extends Equatable {
     this.errorMessage,
     this.biometricEnabled = false,
     this.rememberedUsername,
+    this.rememberedPassword,
   });
 
   final AuthStatus status;
@@ -16,6 +17,7 @@ class AuthState extends Equatable {
   final String? errorMessage;
   final bool biometricEnabled;
   final String? rememberedUsername;
+  final String? rememberedPassword;
 
   AuthState copyWith({
     AuthStatus? status,
@@ -24,6 +26,7 @@ class AuthState extends Equatable {
     bool? clearErrorMessage,
     bool? biometricEnabled,
     String? rememberedUsername,
+    String? rememberedPassword,
   }) {
     return AuthState(
       status: status ?? this.status,
@@ -33,6 +36,7 @@ class AuthState extends Equatable {
           : (errorMessage ?? this.errorMessage),
       biometricEnabled: biometricEnabled ?? this.biometricEnabled,
       rememberedUsername: rememberedUsername ?? this.rememberedUsername,
+      rememberedPassword: rememberedPassword ?? this.rememberedPassword,
     );
   }
 
@@ -43,5 +47,6 @@ class AuthState extends Equatable {
     errorMessage,
     biometricEnabled,
     rememberedUsername,
+    rememberedPassword,
   ];
 }

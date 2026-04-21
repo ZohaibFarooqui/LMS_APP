@@ -35,13 +35,18 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> setRememberMe(bool value, {String? username}) async {
-    await _localDataSource.setRememberMe(value, username: username);
+  Future<void> setRememberMe(bool value, {String? username, String? password}) async {
+    await _localDataSource.setRememberMe(value, username: username, password: password);
   }
 
   @override
   Future<String?> rememberedUsername() {
     return _localDataSource.rememberedUsername();
+  }
+
+  @override
+  Future<String?> rememberedPassword() {
+    return _localDataSource.rememberedPassword();
   }
 
   @override

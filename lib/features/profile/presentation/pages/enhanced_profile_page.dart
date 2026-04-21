@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/network/dio_client.dart';
 import '../../../../core/services/biometric_service.dart';
 import '../../../../core/services/secure_storage_service.dart';
 import '../../../../di/service_locator.dart';
@@ -12,7 +13,6 @@ import '../../../authentication/data/datasources/auth_local_data_source.dart';
 import '../../../face_verification/domain/repositories/face_verification_repository.dart';
 import '../../../face_verification/presentation/bloc/face_verification_bloc.dart';
 import '../../../face_verification/presentation/pages/face_enrollment_page.dart';
-import '../../../face_verification/presentation/pages/face_verification_page.dart';
 import '../../domain/entities/enhanced_profile_entity.dart';
 import '../bloc/profile_bloc.dart';
 
@@ -195,13 +195,13 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               unselectedLabelColor: isDark ? Colors.white54 : Colors.grey,
               indicatorColor: isDark ? AppColors.secondary : theme.primaryColor,
               indicatorWeight: 3,
-              tabs: const [
-                Tab(text: 'Info', icon: Icon(Icons.person_outline, size: 20)),
+              tabs: [
+                Tab(text: 'Info', icon: Icon(Icons.person_outline, size: 20.sp)),
                 Tab(
                   text: 'Schedule',
-                  icon: Icon(Icons.calendar_today, size: 20),
+                  icon: Icon(Icons.calendar_today, size: 20.sp),
                 ),
-                Tab(text: 'Edit', icon: Icon(Icons.edit_outlined, size: 20)),
+                Tab(text: 'Edit', icon: Icon(Icons.edit_outlined, size: 20.sp)),
               ],
             ),
             isDark: isDark,
@@ -684,6 +684,11 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
         // Face Verification Section
         _buildFaceVerificationSection(context, isDark),
 
+        SizedBox(height: 16.h),
+
+        // HR Admin Section (only if HR_ADMIN = 'Y')
+        _buildHrAdminSection(context, isDark),
+
         SizedBox(height: 80.h),
       ],
     );
@@ -762,7 +767,6 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                               );
                               if (result == true) {
                                 if (!mounted) return;
-                                // Refresh face verification state
                                 faceBloc.add(
                                   const FaceVerificationInitialized(),
                                 );
@@ -781,45 +785,27 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                         ),
                       if (hasEnrolled) ...[
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final navigator = Navigator.of(context);
-                              final messenger = ScaffoldMessenger.of(context);
-                              final result = await navigator.push<bool>(
-                                MaterialPageRoute(
-                                  builder: (_) => const FaceVerificationPage(),
-                                ),
-                              );
-                              if (result == true) {
-                                if (!mounted) return;
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: const Text(
-                                      'Face verified successfully',
-                                    ),
-                                    backgroundColor: AppColors.success,
-                                    duration: const Duration(seconds: 2),
-                                  ),
-                                );
-                              }
-                            },
+                          flex: 2,
+                          child: ElevatedButton.icon(
+                            onPressed: null,
                             icon: Icon(
-                              Icons.verified_user_outlined,
+                              Icons.check_circle,
                               size: 18.sp,
                             ),
-                            label: const Text('Verify Face'),
-                            style: OutlinedButton.styleFrom(
+                            label: const Text('Face Enrolled'),
+                            style: ElevatedButton.styleFrom(
                               padding: EdgeInsets.symmetric(vertical: 12.h),
-                              side: BorderSide(
-                                color: isDark
-                                    ? AppColors.secondary
-                                    : theme.primaryColor,
-                              ),
+                              backgroundColor: AppColors.success,
+                              disabledBackgroundColor:
+                                  AppColors.success.withValues(alpha: 0.6),
+                              disabledForegroundColor: Colors.white,
                             ),
                           ),
                         ),
                         SizedBox(width: 12.w),
-                        IconButton(
+                        Expanded(
+                          flex: 1,
+                          child: ElevatedButton.icon(
                           onPressed: () async {
                             final messenger = ScaffoldMessenger.of(context);
                             final confirmed = await showDialog<bool>(
@@ -876,9 +862,17 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                               );
                             }
                           },
-                          icon: Icon(Icons.delete_outline, size: 20.sp),
-                          color: AppColors.error,
-                          tooltip: 'Delete enrollment',
+                          icon: Icon(Icons.delete_outline, size: 18.sp),
+                          label: const Text('Delete'),
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 12.h,
+                              horizontal: 16.w,
+                            ),
+                            backgroundColor: AppColors.error,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
                         ),
                       ],
                     ],
@@ -899,6 +893,331 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildHrAdminSection(BuildContext context, bool isDark) {
+    final theme = Theme.of(context);
+    final secureStorage = getIt<SecureStorageService>();
+
+    return FutureBuilder<String?>(
+      future: secureStorage.read('hr_admin'),
+      builder: (context, snapshot) {
+        final hrAdmin = snapshot.data;
+        if (hrAdmin != 'Y') return const SizedBox.shrink();
+
+        return _buildSection(
+          context,
+          title: 'HR Admin',
+          icon: Icons.admin_panel_settings_outlined,
+          isDark: isDark,
+          children: [
+            Container(
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.how_to_reg_rounded,
+                        color: isDark
+                            ? AppColors.secondary
+                            : theme.primaryColor,
+                        size: 20.sp,
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Text(
+                          'Register face for other employees',
+                          style: TextStyle(
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w500,
+                            color: isDark
+                                ? Colors.white
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8.h),
+                  Text(
+                    'Enter an employee\'s mobile number to enroll their face for attendance verification.',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: isDark ? Colors.white54 : AppColors.textSecondary,
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showHrFaceEnrollDialog(context, isDark),
+                      icon: const Icon(Icons.person_add_alt_1_rounded),
+                      label: const Text('Register Employee Face'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark
+                            ? AppColors.secondary
+                            : theme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 14.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showHrFaceEnrollDialog(BuildContext context, bool isDark) {
+    final phoneController = TextEditingController();
+    final theme = Theme.of(context);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        bool isLoading = false;
+        String? errorText;
+        // Employee details after lookup
+        String? foundCardNo;
+        String? foundEmpName;
+        String? foundEmpCode;
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.r),
+              ),
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.person_search_rounded,
+                    color: isDark ? AppColors.secondary : theme.primaryColor,
+                  ),
+                  SizedBox(width: 8.w),
+                  const Text('Find Employee'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Mobile Number / Employee Code',
+                      hintText: 'Enter phone number or code',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      errorText: errorText,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                    ),
+                  ),
+                  // Show employee details after successful lookup
+                  if (foundCardNo != null) ...[
+                    SizedBox(height: 16.h),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: (isDark
+                                ? AppColors.secondary
+                                : theme.primaryColor)
+                            .withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12.r),
+                        border: Border.all(
+                          color: (isDark
+                                  ? AppColors.secondary
+                                  : theme.primaryColor)
+                              .withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.success,
+                                size: 20.sp,
+                              ),
+                              SizedBox(width: 8.w),
+                              Text(
+                                'Employee Found',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14.sp,
+                                  color: AppColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8.h),
+                          if (foundEmpName != null &&
+                              foundEmpName!.isNotEmpty) ...[
+                            _buildDetailRow(
+                                'Name', foundEmpName!, isDark, theme),
+                            SizedBox(height: 4.h),
+                          ],
+                          if (foundEmpCode != null &&
+                              foundEmpCode!.isNotEmpty) ...[
+                            _buildDetailRow(
+                                'Code', foundEmpCode!, isDark, theme),
+                            SizedBox(height: 4.h),
+                          ],
+                          _buildDetailRow(
+                              'Card No', foundCardNo!, isDark, theme),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (isLoading) ...[
+                    SizedBox(height: 16.h),
+                    const CircularProgressIndicator(),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                if (foundCardNo != null)
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      if (!context.mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FaceEnrollmentPage(
+                            overrideCardNo: foundCardNo!,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.face_rounded, size: 18.sp),
+                    label: const Text('Register Face'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark
+                          ? AppColors.secondary
+                          : theme.primaryColor,
+                      foregroundColor: Colors.white,
+                    ),
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            final phone = phoneController.text.trim();
+                            if (phone.isEmpty) {
+                              setDialogState(() {
+                                errorText = 'Please enter a phone number';
+                              });
+                              return;
+                            }
+
+                            setDialogState(() {
+                              isLoading = true;
+                              errorText = null;
+                              foundCardNo = null;
+                              foundEmpName = null;
+                              foundEmpCode = null;
+                            });
+
+                            try {
+                              final response = await DioClient.instance
+                                  .get('/auth/lookup/$phone');
+                              final cardNo =
+                                  response.data['card_no']?.toString();
+                              final empName =
+                                  response.data['emp_name']?.toString();
+                              final empCode =
+                                  response.data['empcode']?.toString();
+
+                              if (cardNo == null || cardNo.isEmpty) {
+                                setDialogState(() {
+                                  isLoading = false;
+                                  errorText = 'Employee not found';
+                                });
+                                return;
+                              }
+
+                              setDialogState(() {
+                                isLoading = false;
+                                foundCardNo = cardNo;
+                                foundEmpName = empName;
+                                foundEmpCode = empCode;
+                              });
+                            } catch (e) {
+                              setDialogState(() {
+                                isLoading = false;
+                                errorText = e.toString().contains('404')
+                                    ? 'Employee not found'
+                                    : 'Connection error';
+                              });
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark
+                          ? AppColors.secondary
+                          : theme.primaryColor,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Look Up'),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(
+      String label, String value, bool isDark, ThemeData theme) {
+    return Row(
+      children: [
+        SizedBox(width: 28.w),
+        SizedBox(
+          width: 60.w,
+          child: Text(
+            '$label:',
+            style: TextStyle(
+              fontSize: 12.sp,
+              color: isDark ? Colors.white54 : AppColors.textSecondary,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 13.sp,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white : AppColors.textPrimary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1998,7 +2317,24 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDate(String dateStr) {
+    final trimmed = dateStr.trim();
+    if (trimmed.isEmpty || trimmed == '-') return dateStr;
+    DateTime? date = DateTime.tryParse(trimmed);
+    if (date == null) {
+      // Try "dd-MMM-yyyy" format (e.g. "27-oct-2025")
+      try {
+        final parts = trimmed.split('-');
+        if (parts.length == 3) {
+          const months = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6, 'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12};
+          final month = months[parts[1].toLowerCase()];
+          if (month != null) {
+            date = DateTime(int.parse(parts[2]), month, int.parse(parts[0]));
+          }
+        }
+      } catch (_) {}
+    }
+    if (date == null) return dateStr;
     return '${date.day}/${date.month}/${date.year}';
   }
 }

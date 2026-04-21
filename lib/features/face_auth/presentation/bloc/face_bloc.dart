@@ -65,11 +65,11 @@ class FaceBloc extends Bloc<FaceEvent, FaceState> {
     emit(state.copyWith(status: FaceStatus.loading, errorMessage: null));
 
     try {
-      if (event.frames.length < 10) {
+      if (event.frames.length < 18) {
         emit(
           state.copyWith(
             status: FaceStatus.failure,
-            errorMessage: 'Minimum 10 frames required for registration',
+            errorMessage: 'Minimum 18 frames required for registration',
           ),
         );
         return;
@@ -115,11 +115,11 @@ class FaceBloc extends Bloc<FaceEvent, FaceState> {
     emit(state.copyWith(status: FaceStatus.loading, errorMessage: null));
 
     try {
-      if (event.frames.length < 5) {
+      if (event.frames.length < 10) {
         emit(
           state.copyWith(
             status: FaceStatus.failure,
-            errorMessage: 'Minimum 5 frames required for verification',
+            errorMessage: 'Minimum 10 frames required for verification',
             isMatch: false,
           ),
         );

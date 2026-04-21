@@ -244,7 +244,7 @@ class FaceVerificationBloc
         ),
       );
 
-      // Capture frames - backend expects at least 10 frames
+      // Capture 16 frames — backend needs enough good detections after filtering
       const int numFrames = 10;
       debugPrint('FaceVerificationBloc: Starting capture of $numFrames frames');
 
@@ -276,12 +276,12 @@ class FaceVerificationBloc
       );
 
       // Check if we have enough frames
-      if (frames.length < 10) {
+      if (frames.length < 5) {
         final errorMsg =
-            'Failed to capture enough frames (${frames.length}/10). Please try again.';
+            'Failed to capture enough frames (${frames.length}/5). Please try again.';
 
         debugPrint(
-          'FaceVerificationBloc: Insufficient frames - ${frames.length}/10',
+          'FaceVerificationBloc: Insufficient frames - ${frames.length}/5',
         );
 
         emit(
@@ -308,11 +308,11 @@ class FaceVerificationBloc
       // Convert captured full-frame images to base64 JPG (backend expects base64 frames)
       try {
         final List<String> base64Frames = [];
-        // Send all captured frames (at least 10)
+
         final numToSend = frames.length > 10 ? 10 : frames.length;
+
         for (int i = 0; i < numToSend; i++) {
-          final img.Image imgFrame = frames[i];
-          final jpg = img.encodeJpg(imgFrame, quality: 85);
+          final jpg = img.encodeJpg(frames[i], quality: 85);
           base64Frames.add(base64Encode(jpg));
         }
 
@@ -680,30 +680,30 @@ class FaceVerificationBloc
         return;
       }
 
-      // Capture frames for backend verification (min 5 frames)
-      const int numFrames = 5;
+      // Capture 16 frames — sufficient for backend after filtering
+      const int numFrames = 16;
       final frames = await _cameraDataSource.captureBurstFrames(
         _cameraController!,
         numFrames,
       );
 
-      if (frames.isEmpty || frames.length < numFrames) {
+      if (frames.isEmpty || frames.length < 5) {
         emit(
           state.copyWith(
             status: FaceVerificationStatus.verificationFailure,
             errorMessage:
-                'Failed to capture enough frames (${frames.length}/$numFrames). Please try again.',
+                'Failed to capture enough frames (${frames.length}/5). Please try again.',
           ),
         );
         _isCapturing = false;
         return;
       }
 
-      // Convert frames to base64 JPG (full frames, not cropped)
+      // Convert frames to base64 JPG — resized to 640x480 for reliable face detection
       final List<String> base64Frames = [];
+
       for (int i = 0; i < frames.length; i++) {
-        final img.Image f = frames[i];
-        final jpg = img.encodeJpg(f, quality: 85);
+        final jpg = img.encodeJpg(frames[i], quality: 85);
         base64Frames.add(base64Encode(jpg));
       }
 

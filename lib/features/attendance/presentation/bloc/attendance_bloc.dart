@@ -19,13 +19,24 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     AttendanceRequested event,
     Emitter<AttendanceState> emit,
   ) async {
-    emit(state.copyWith(status: AttendanceStatus.loading, errorMessage: null));
+    final now = DateTime.now();
+    final start = event.from ?? DateTime(now.year, now.month, 1);
+    final end = event.to ?? DateTime(now.year, now.month + 1, 0);
+
+    emit(state.copyWith(
+      status: AttendanceStatus.loading,
+      errorMessage: null,
+      fromDate: start,
+      toDate: end,
+    ));
     try {
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, 1);
-      final end = DateTime(now.year, now.month + 1, 0);
       final records = await _getAttendanceReportUseCase(start, end);
-      emit(state.copyWith(status: AttendanceStatus.success, records: records));
+      emit(state.copyWith(
+        status: AttendanceStatus.success,
+        records: records,
+        fromDate: start,
+        toDate: end,
+      ));
     } catch (e) {
       emit(
         state.copyWith(
@@ -36,9 +47,3 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     }
   }
 }
-
-
-
-
-
-

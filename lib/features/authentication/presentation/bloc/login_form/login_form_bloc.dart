@@ -28,6 +28,8 @@ class LoginFormBloc extends Bloc<LoginFormEvent, LoginFormState> {
     if (event.rememberedUsername != null && event.rememberedUsername!.isNotEmpty) {
       emit(state.copyWith(
         username: event.rememberedUsername,
+        password: event.rememberedPassword ?? '',
+        rememberMe: true,
         status: LoginFormStatus.initial,
       ));
     }

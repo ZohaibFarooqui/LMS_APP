@@ -15,10 +15,10 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   @override
   Future<EnhancedProfileModel> fetchProfile(String empPk) async {
     final response = await _dio.get<Map<String, dynamic>>(
-      '/employee/profile',
-      queryParameters: {'emp_pk': empPk},
+      '/auth/profile/$empPk',
     );
-    final body = response.data?['body'] as Map<String, dynamic>? ?? {};
+    // Backend returns a flat object; fall back to empty map on null
+    final body = response.data ?? {};
     return EnhancedProfileModel.fromJson(body);
   }
 }

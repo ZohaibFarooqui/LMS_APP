@@ -17,12 +17,14 @@ class AttendanceCalendar extends StatelessWidget {
     required this.selectedDate,
     required this.onDateSelected,
     this.joiningDate,
+    this.onPageChanged,
   });
 
   final List<AttendanceRecord> records;
   final DateTime selectedDate;
   final ValueChanged<DateTime> onDateSelected;
   final DateTime? joiningDate;
+  final ValueChanged<DateTime>? onPageChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +98,7 @@ class AttendanceCalendar extends StatelessWidget {
           }
           onDateSelected(selectedDay);
         },
+        onPageChanged: onPageChanged,
         calendarFormat: CalendarFormat.month,
         startingDayOfWeek: StartingDayOfWeek.monday,
         calendarStyle: CalendarStyle(

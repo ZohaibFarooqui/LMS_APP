@@ -18,6 +18,8 @@ class LmsApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ScreenUtilInit(
       designSize: const Size(390, 844),
+      minTextAdapt: true,
+      splitScreenMode: true,
       builder: (context, child) {
         return MultiBlocProvider(
           providers: [

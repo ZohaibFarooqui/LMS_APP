@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class EmptyState extends StatelessWidget {
   const EmptyState({super.key, required this.message});
@@ -9,7 +10,7 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24.w),
         child: Text(
           message,
           textAlign: TextAlign.center,
@@ -19,4 +20,3 @@ class EmptyState extends StatelessWidget {
     );
   }
 }
-

@@ -57,7 +57,7 @@ class BiometricAttendanceState extends Equatable {
     this.faceVerificationMessage,
     this.faceVerificationConfidence,
     this.capturedFramesCount = 0,
-    this.totalFramesToCapture = 5,
+    this.totalFramesToCapture = 20,
   });
 
   /// Current status of the attendance process

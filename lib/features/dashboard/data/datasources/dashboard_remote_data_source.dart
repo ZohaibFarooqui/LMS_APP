@@ -17,9 +17,9 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
   Future<DashboardSummaryModel> fetchDashboard(String cardNo1) async {
     try {
       debugPrint(
-        'DashboardRemoteDataSource: Fetching dashboard for card_no1: $cardNo1',
+        'DashboardRemoteDataSource: Fetching dashboard for card_no: $cardNo1',
       );
-      final response = await _dio.get<Map<String, dynamic>>('/data/$cardNo1');
+      final response = await _dio.get<Map<String, dynamic>>('/auth/dashboard/$cardNo1');
 
       debugPrint(
         'DashboardRemoteDataSource: Response status: ${response.statusCode}',
@@ -95,4 +95,3 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
     }
   }
 }
-

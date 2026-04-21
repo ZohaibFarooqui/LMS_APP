@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../core/utils/date_formatter.dart';
 import '../../../../di/service_locator.dart';
@@ -60,32 +61,37 @@ class _LeaveBalanceView extends StatelessWidget {
             return const Center(child: Text('No balances available'));
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16.w),
             itemCount: state.balances.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, __) => SizedBox(height: 12.h),
             itemBuilder: (context, index) {
               final balance = state.balances[index];
               return AppCard(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          balance.name,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          balance.code,
-                          style: Theme.of(context).textTheme.labelMedium,
-                        ),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            balance.name,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            balance.code,
+                            style: Theme.of(context).textTheme.labelMedium,
+                          ),
+                        ],
+                      ),
                     ),
                     Text(
-                      '${balance.balance} days',
+                      '${balance.balance < 0 ? 0 : balance.balance} days',
                       style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                          ?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: balance.balance <= 0 ? Colors.grey : null,
+                      ),
                     ),
                   ],
                 ),
@@ -103,41 +109,67 @@ class _LeaveApplicationView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<LeaveApplicationBloc>(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => getIt<LeaveApplicationBloc>()),
+        BlocProvider(
+          create: (_) =>
+              getIt<LeaveBalanceBloc>()..add(const LeaveBalanceRequested()),
+        ),
+      ],
       child: BlocConsumer<LeaveApplicationBloc, LeaveApplicationState>(
         listener: (context, state) {
           if (state.status == LeaveApplicationStatus.success) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Leave submitted successfully')),
+              const SnackBar(
+                content: Text('Leave submitted successfully'),
+                duration: Duration(seconds: 2),
+              ),
             );
           } else if (state.status == LeaveApplicationStatus.failure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.errorMessage ?? 'Failed to submit leave'),
+                duration: const Duration(seconds: 2),
               ),
             );
           }
         },
         builder: (context, state) {
+          return BlocBuilder<LeaveBalanceBloc, LeaveBalanceState>(
+            builder: (context, balanceState) {
+              // Only show leave types with positive balance
+              final availableTypes = balanceState.balances
+                  .where((b) => b.balance > 0)
+                  .toList();
+
+              // If selected type no longer has balance, reset it
+              final currentType = state.leaveType;
+              final isCurrentTypeValid = currentType.isEmpty ||
+                  availableTypes.any((b) => b.code == currentType);
+
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16.w),
             children: [
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Leave Type'),
-                // ignore: deprecated_member_use
-                value: state.leaveType,
-                items: const ['CL', 'CP', 'EL', 'ML', 'OD', 'WP', 'SL']
+                value: isCurrentTypeValid ? (currentType.isEmpty ? null : currentType) : null,
+                items: availableTypes
                     .map(
-                      (type) =>
-                          DropdownMenuItem(value: type, child: Text(type)),
+                      (b) => DropdownMenuItem(
+                        value: b.code,
+                        child: Text('${b.code} - ${b.name} (${b.balance} days)'),
+                      ),
                     )
                     .toList(),
                 onChanged: (value) => context.read<LeaveApplicationBloc>().add(
-                  LeaveTypeChanged(value ?? 'CL'),
+                  LeaveTypeChanged(value ?? ''),
                 ),
+                hint: availableTypes.isEmpty
+                    ? const Text('No leave balance available')
+                    : const Text('Select leave type'),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               Row(
                 children: [
                   Expanded(
@@ -150,7 +182,7 @@ class _LeaveApplicationView extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12.w),
                   Expanded(
                     child: _datePicker(
                       context,
@@ -163,7 +195,7 @@ class _LeaveApplicationView extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12.h),
               CheckboxListTile(
                 value: state.halfDay,
                 onChanged: (value) => context.read<LeaveApplicationBloc>().add(
@@ -171,6 +203,34 @@ class _LeaveApplicationView extends StatelessWidget {
                 ),
                 title: const Text('Half Day'),
               ),
+              if (state.halfDay) ...[
+                SizedBox(height: 12.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _timePicker(
+                        context,
+                        'From Time',
+                        state.fromTime,
+                        (time) => context.read<LeaveApplicationBloc>().add(
+                          LeaveFromTimeChanged(time),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: _timePicker(
+                        context,
+                        'To Time',
+                        state.toTime,
+                        (time) => context.read<LeaveApplicationBloc>().add(
+                          LeaveToTimeChanged(time),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               TextFormField(
                 decoration: const InputDecoration(labelText: 'Reason'),
                 minLines: 2,
@@ -180,7 +240,7 @@ class _LeaveApplicationView extends StatelessWidget {
                   LeaveReasonChanged(value),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24.h),
               AppButton(
                 label: 'Submit Request',
                 isLoading: state.status == LeaveApplicationStatus.submitting,
@@ -189,6 +249,8 @@ class _LeaveApplicationView extends StatelessWidget {
                 ),
               ),
             ],
+          );
+            },
           );
         },
       ),
@@ -217,9 +279,41 @@ class _LeaveApplicationView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 4),
+          SizedBox(height: 4.h),
           Text(
             DateFormatter.formatDate(date),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timePicker(
+    BuildContext context,
+    String label,
+    TimeOfDay? time,
+    ValueChanged<TimeOfDay> onSelected,
+  ) {
+    return TextButton(
+      onPressed: () async {
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: time ?? TimeOfDay.now(),
+        );
+        if (picked != null) {
+          onSelected(picked);
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          SizedBox(height: 4.h),
+          Text(
+            time != null
+                ? '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}'
+                : 'Select time',
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ],
@@ -249,7 +343,6 @@ class _LeaveStatusView extends StatelessWidget {
           getIt<LeaveStatusBloc>()..add(const LeaveStatusRequested()),
       child: BlocBuilder<LeaveStatusBloc, LeaveStatusState>(
         buildWhen: (previous, current) {
-          // Only rebuild when status or requests change
           return previous.status != current.status ||
               previous.requests != current.requests;
         },
@@ -261,9 +354,9 @@ class _LeaveStatusView extends StatelessWidget {
             return const Center(child: Text('No leave requests found'));
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16.w),
             itemCount: state.requests.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, __) => SizedBox(height: 12.h),
             itemBuilder: (context, index) {
               final request = state.requests[index];
               return AppCard(
@@ -273,9 +366,11 @@ class _LeaveStatusView extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '${request.type} ${request.halfDay ? '(Half Day)' : ''}',
-                          style: Theme.of(context).textTheme.titleMedium,
+                        Expanded(
+                          child: Text(
+                            '${request.type} ${request.halfDay ? '(Half Day)' : ''}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                         ),
                         StatusBadge(
                           label: request.status.name.toUpperCase(),
@@ -283,14 +378,14 @@ class _LeaveStatusView extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     Text(
                       '${DateFormatter.formatDate(request.fromDate)} - ${DateFormatter.formatDate(request.toDate)}',
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8.h),
                     Text(request.reason),
                     if (request.approverComment != null) ...[
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6.h),
                       Text('Approver: ${request.approverComment}'),
                     ],
                   ],

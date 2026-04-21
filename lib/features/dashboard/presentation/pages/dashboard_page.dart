@@ -7,6 +7,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/designation_formatter.dart';
 import '../../../../di/service_locator.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../authentication/presentation/widgets/animated_background.dart';
@@ -48,7 +49,8 @@ class DashboardPage extends StatelessWidget {
             );
           }
           return AnimatedBackground(
-            imagePath: 'lib/assets/images/login-bgg.jpg',
+            // imagePath: 'lib/assets/images/login-bgg.jpg',
+            imagePath: 'lib/assets/images/bg.png',
             blurAmount: 3.5,
             child: RefreshIndicator(
               onRefresh: () async =>
@@ -279,7 +281,7 @@ class _WelcomeCard extends StatelessWidget {
                       SizedBox(width: 8.w),
                       Expanded(
                         child: Text(
-                          '${summary.designation} • ${summary.department}',
+                          '${DesignationFormatter.shortenDesignation(summary.designation)} • ${summary.department}',
                           style: TextStyle(
                             fontSize: 12.sp,
                             color: Colors.white.withValues(alpha: 0.9),
@@ -370,7 +372,7 @@ class _QuickStatsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalLeaves = summary.balances.fold<int>(
       0,
-      (sum, b) => sum + b.balance,
+      (sum, b) => sum + (b.balance < 0 ? 0 : b.balance),
     );
 
     return Row(
@@ -515,7 +517,7 @@ class _LeaveBalanceGrid extends StatelessWidget {
         crossAxisCount: 2,
         mainAxisSpacing: 12.h,
         crossAxisSpacing: 12.w,
-        childAspectRatio: 2.0, // Increased to prevent overflow
+        childAspectRatio: 1.8, // Adjusted for better fit
       ),
       itemCount: summary.balances.length,
       itemBuilder: (context, index) {
@@ -549,28 +551,28 @@ class _LeaveBalanceGrid extends StatelessWidget {
                 ],
               ),
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 4.w),
+                padding: EdgeInsets.symmetric(vertical: 4.h, horizontal: 6.w),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
                         Container(
-                          width: 7.w,
-                          height: 7.w,
+                          width: 6.w,
+                          height: 6.w,
                           decoration: BoxDecoration(
                             color: color,
                             shape: BoxShape.circle,
                           ),
                         ),
-                        SizedBox(width: 5.w),
+                        SizedBox(width: 4.w),
                         Expanded(
                           child: Text(
                             balance.code,
                             style: TextStyle(
-                              fontSize: 10.sp,
+                              fontSize: 9.sp,
                               fontWeight: FontWeight.w600,
                               color: color,
                             ),
@@ -580,33 +582,44 @@ class _LeaveBalanceGrid extends StatelessWidget {
                         ),
                       ],
                     ),
-                    SizedBox(height: 3.h),
-                    Text(
-                      '${balance.balance}',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : AppColors.textPrimary,
-                        height: 1.0,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    SizedBox(height: 4.h),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${balance.balance < 0 ? 0 : balance.balance}',
+                          style: TextStyle(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.bold,
+                            color: balance.balance <= 0
+                                ? (isDark ? Colors.white38 : Colors.grey)
+                                : (isDark ? Colors.white : AppColors.textPrimary),
+                            height: 1.0,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(width: 2.w),
+                        Padding(
+                          padding: EdgeInsets.only(bottom: 2.h),
+                          child: Text(
+                            'days',
+                            style: TextStyle(
+                              fontSize: 9.sp,
+                              color: isDark
+                                  ? Colors.white54
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'days',
-                      style: TextStyle(
-                        fontSize: 8.sp,
-                        color: isDark
-                            ? Colors.white54
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                    SizedBox(height: 1.h),
-                    Flexible(
+                    SizedBox(height: 2.h),
+                    Expanded(
                       child: Text(
                         balance.name,
                         style: TextStyle(
-                          fontSize: 8.sp,
+                          fontSize: 9.sp,
                           color: isDark
                               ? Colors.white54
                               : AppColors.textSecondary,
@@ -636,7 +649,10 @@ class _LeavePieChart extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    if (summary.balances.isEmpty) {
+    // Only show leave types with positive balance in the pie chart
+    final positiveBalances = summary.balances.where((b) => b.balance > 0).toList();
+
+    if (positiveBalances.isEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16.r),
         child: BackdropFilter(
@@ -678,12 +694,12 @@ class _LeavePieChart extends StatelessWidget {
       AppColors.accent,
     ];
 
-    final total = summary.balances.fold<int>(
+    final total = positiveBalances.fold<int>(
       0,
       (prev, element) => prev + element.balance,
     );
 
-    final sections = summary.balances.asMap().entries.map((entry) {
+    final sections = positiveBalances.asMap().entries.map((entry) {
       final index = entry.key;
       final balance = entry.value;
       final value = total == 0 ? 0.0 : balance.balance / total;
@@ -744,7 +760,7 @@ class _LeavePieChart extends StatelessWidget {
                 spacing: 16.w,
                 runSpacing: 10.h,
                 alignment: WrapAlignment.center,
-                children: summary.balances.asMap().entries.map((entry) {
+                children: positiveBalances.asMap().entries.map((entry) {
                   final index = entry.key;
                   final balance = entry.value;
                   return Row(

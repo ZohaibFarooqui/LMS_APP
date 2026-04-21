@@ -12,6 +12,10 @@ class AttendanceSummary extends Equatable {
     required this.outdoorDuty,
     required this.approvedExtraWork,
     required this.lateCount,
+    this.totalDays = 0,
+    this.presentDays = 0,
+    this.incompleteDays = 0,
+    this.totalMinutes = 0,
   });
 
   final int casualLeave;
@@ -24,6 +28,10 @@ class AttendanceSummary extends Equatable {
   final int outdoorDuty;
   final int approvedExtraWork;
   final int lateCount;
+  final int totalDays;
+  final int presentDays;
+  final int incompleteDays;
+  final int totalMinutes;
 
   @override
   List<Object?> get props => [
@@ -37,6 +45,10 @@ class AttendanceSummary extends Equatable {
         outdoorDuty,
         approvedExtraWork,
         lateCount,
+        totalDays,
+        presentDays,
+        incompleteDays,
+        totalMinutes,
       ];
 }
 

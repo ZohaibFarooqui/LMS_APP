@@ -35,9 +35,9 @@ class DashboardRepositoryImpl implements DashboardRepository {
 
   @override
   Future<DashboardSummary> fetchDashboard() async {
-    // Get card_no1 from secure storage
+    // Get card_no from secure storage
     final secureStorage = getIt<SecureStorageService>();
-    final cardNo1 = await secureStorage.read('card_no1') ?? '';
+    final cardNo1 = await secureStorage.read('card_no') ?? '';
 
     if (cardNo1.isEmpty) {
       throw Exception('Card number not found. Please login again.');
@@ -77,11 +77,11 @@ class DashboardRepositoryImpl implements DashboardRepository {
       profilePictureUrl: profilePictureUrl,
     );
 
-    // Store card_no1 from dashboard response if not already stored
+    // Store card_no from dashboard response if not already stored
     if (summaryWithBalances.cardNo1.isNotEmpty) {
-      final storedCardNo1 = await secureStorage.read('card_no1');
+      final storedCardNo1 = await secureStorage.read('card_no');
       if (storedCardNo1 == null || storedCardNo1.isEmpty) {
-        await secureStorage.write('card_no1', summaryWithBalances.cardNo1);
+        await secureStorage.write('card_no', summaryWithBalances.cardNo1);
       }
     }
 

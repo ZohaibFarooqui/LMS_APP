@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/services/secure_storage_service.dart';
 import '../../../../di/service_locator.dart';
 import '../bloc/face_verification_bloc.dart';
 import '../widgets/camera_preview_widget.dart';
@@ -11,8 +12,13 @@ import '../widgets/camera_preview_widget.dart';
 ///
 /// Allows users to enroll their face for attendance verification.
 /// Captures multiple images and stores only the averaged embedding.
+/// If [overrideCardNo] is provided (HR admin flow), it temporarily swaps
+/// the stored card_no1 so the bloc enrols the target employee.
 class FaceEnrollmentPage extends StatefulWidget {
-  const FaceEnrollmentPage({super.key});
+  const FaceEnrollmentPage({super.key, this.overrideCardNo});
+
+  /// When non-null, enroll this employee instead of the logged-in user.
+  final String? overrideCardNo;
 
   @override
   State<FaceEnrollmentPage> createState() => _FaceEnrollmentPageState();
@@ -22,6 +28,7 @@ class _FaceEnrollmentPageState extends State<FaceEnrollmentPage> {
   // Cache theme to avoid repeated lookups
   late final ThemeData _theme;
   late final bool _isDark;
+  String? _originalCardNo;
 
   @override
   void didChangeDependencies() {
@@ -30,14 +37,52 @@ class _FaceEnrollmentPageState extends State<FaceEnrollmentPage> {
     _isDark = _theme.brightness == Brightness.dark;
   }
 
+  Future<void> _swapCardNo() async {
+    if (widget.overrideCardNo == null) return;
+    final storage = getIt<SecureStorageService>();
+    _originalCardNo = await storage.read('card_no1');
+    await storage.write('card_no1', widget.overrideCardNo!);
+  }
+
+  Future<void> _restoreCardNo() async {
+    if (_originalCardNo == null) return;
+    final storage = getIt<SecureStorageService>();
+    await storage.write('card_no1', _originalCardNo!);
+  }
+
+  @override
+  void dispose() {
+    _restoreCardNo();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _swapCardNo(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _buildContent();
+      },
+    );
+  }
+
+  Widget _buildContent() {
     return BlocProvider(
       create: (_) => getIt<FaceVerificationBloc>()
         ..add(const FaceVerificationInitialized())
         ..add(const StartFaceEnrollment()),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Face Enrollment'), elevation: 0),
+        appBar: AppBar(
+          title: Text(widget.overrideCardNo != null
+              ? 'Enroll Employee Face'
+              : 'Face Enrollment'),
+          elevation: 0,
+        ),
         body: BlocConsumer<FaceVerificationBloc, FaceVerificationState>(
           listenWhen: (previous, current) {
             // Only listen to status changes and error messages

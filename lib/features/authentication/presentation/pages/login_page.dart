@@ -8,6 +8,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/services/biometric_service.dart';
 import '../../../../di/service_locator.dart';
+import '../../../attendance/presentation/bloc/biometric_attendance_bloc.dart';
+import '../../../attendance/presentation/pages/biometric_attendance_page.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/login_form/login_form_bloc.dart';
 import '../widgets/animated_background.dart';
@@ -101,14 +103,18 @@ class _LoginPageContentState extends State<_LoginPageContent> {
     // Check biometric availability
     _checkBiometricAvailability();
 
-    // Initialize form with remembered username if available
+    // Initialize form with remembered credentials if available
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authState = context.read<AuthBloc>().state;
       if (authState.rememberedUsername != null) {
         _usernameController.text = authState.rememberedUsername!;
+        if (authState.rememberedPassword != null) {
+          _passwordController.text = authState.rememberedPassword!;
+        }
         context.read<LoginFormBloc>().add(
           LoginFormInitialized(
             rememberedUsername: authState.rememberedUsername,
+            rememberedPassword: authState.rememberedPassword,
           ),
         );
       }
@@ -161,6 +167,36 @@ class _LoginPageContentState extends State<_LoginPageContent> {
         username: username,
         password: password,
         rememberMe: formState.rememberMe,
+      ),
+    );
+  }
+
+  Future<void> _handleMarkAttendance() async {
+    if (!mounted) return;
+    // Directly navigate to BiometricAttendancePage in identify mode
+    // Camera opens → face identified → attendance marked automatically
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider(
+          create: (_) => BiometricAttendanceBloc(
+            biometricService: getIt(),
+            geocodingService: getIt(),
+            attendanceFileService: getIt(),
+            validationService: getIt(),
+            appConfig: getIt(),
+            employeeId: '', // Will be resolved by face identification
+            identifyMode: true,
+            locationService: getIt(),
+            authRepository: getIt(),
+            markBiometricAttendanceUseCase: getIt(),
+            faceStatusUseCase: getIt(),
+            verifyFaceUseCase: getIt(),
+            identifyFaceUseCase: getIt(),
+            faceCameraDataSource: getIt(),
+          )..add(const BiometricAttendanceInitialized()),
+          child: const BiometricAttendancePage(),
+        ),
       ),
     );
   }
@@ -274,7 +310,8 @@ class _LoginPageContentState extends State<_LoginPageContent> {
           }
         },
         child: AnimatedBackground(
-          imagePath: 'lib/assets/images/login-bgg.jpg',
+          // imagePath: 'lib/assets/images/login-bgg.jpg',
+          imagePath: 'lib/assets/images/bg.png',
           blurAmount: 3.5,
           child: SafeArea(
             child: LayoutBuilder(
@@ -624,6 +661,17 @@ class _LoginPageContentState extends State<_LoginPageContent> {
                   ),
                 ),
 
+                // Mark Attendance Button (no login required)
+                SizedBox(height: isSmallScreen ? 10.h : 14.h),
+                SlideFadeAnimation(
+                  delay: const Duration(milliseconds: 675),
+                  child: _buildMarkAttendanceButton(
+                    context,
+                    theme,
+                    isLoading,
+                  ),
+                ),
+
                 // Biometric Login Option - Show if biometric is available
                 if (_biometricAvailable) ...[
                   SizedBox(height: isSmallScreen ? 12.h : 16.h),
@@ -732,6 +780,87 @@ class _LoginPageContentState extends State<_LoginPageContent> {
     );
   }
 
+  Widget _buildMarkAttendanceButton(
+    BuildContext context,
+    ThemeData theme,
+    bool isLoading,
+  ) {
+    final isDark = theme.brightness == Brightness.dark;
+    final color = isDark ? AppColors.success : const Color(0xFF16A34A);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withValues(alpha: 0.1),
+            color.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : _handleMarkAttendance,
+          borderRadius: BorderRadius.circular(12.r),
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 20.w),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(8.w),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                          Icons.face_rounded,
+                          color: Colors.white,
+                          size: 24.sp,
+                        ),
+                ),
+                SizedBox(width: 16.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mark Attendance',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      ),
+                      Text(
+                        'Scan face to check in / check out',
+                        style: TextStyle(
+                          fontSize: 11.sp,
+                          color: color.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16.sp,
+                  color: color,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFooter(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -739,7 +868,7 @@ class _LoginPageContentState extends State<_LoginPageContent> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '© ${DateTime.now().year} YDC. All rights reserved.',
+          '© ${DateTime.now().year} LMS. All rights reserved.',
           style: TextStyle(
             fontSize: 11.sp,
             color: isDark ? Colors.white38 : Colors.white70,

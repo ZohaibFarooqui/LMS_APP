@@ -40,16 +40,12 @@ class EnhancedProfileModel extends EnhancedProfileEntity {
     // Support multiple API field names (legacy and new)
     String? fatherName = (json['father_name'] ?? json['fatherName'])?.toString();
     String? nicNo = (json['nic_no'] ?? json['nicNo'])?.toString();
-    DateTime? nicExpDate = json['nic_exp_date'] != null
-        ? DateTime.tryParse(json['nic_exp_date'] as String)
-        : (json['nicExpDate'] != null ? DateTime.tryParse(json['nicExpDate'] as String) : null);
+    String? nicExpDate = (json['nic_exp_date'] ?? json['nicExpDate'])?.toString();
     String? eobi = (json['eobi_no'] ?? json['eobiNo'])?.toString();
     String? uic = (json['uic_card_no'] ?? json['uicCardNo'])?.toString();
     int? salary = json['salary'] is int ? json['salary'] as int : (json['salary'] != null ? int.tryParse(json['salary'].toString()) : null);
     String? managerAbove = (json['manager_above_sts'] ?? json['managerAboveSts'])?.toString();
-    DateTime? confirmationDate = json['confirmation_date'] != null
-        ? DateTime.tryParse(json['confirmation_date'] as String)
-        : (json['confirmationDate'] != null ? DateTime.tryParse(json['confirmationDate'] as String) : null);
+    String? confirmationDate = (json['confirmation_date'] ?? json['confirmationDate'])?.toString();
     String? companyAccommodation = (json['company_accomodation'] ?? json['company_accommodation'] ?? json['companyAccommodation'])?.toString();
     String? compcnm = (json['compcnm'] ?? json['compcnm'])?.toString();
     int? compc = json['compc'] is int ? json['compc'] as int : (json['compc'] != null ? int.tryParse(json['compc'].toString()) : null);
@@ -62,12 +58,8 @@ class EnhancedProfileModel extends EnhancedProfileEntity {
       email: (json['email'] ?? '').toString(),
       phoneNumber: (phoneVal ?? json['phone'] ?? json['phone_number'] ?? '').toString(),
       gender: (json['gender'] ?? 'M').toString(),
-        dateOfBirth: json['date_of_birth'] != null
-          ? DateTime.parse(json['date_of_birth'] as String)
-          : DateTime.now(),
-        joiningDate: json['date_of_join'] != null
-          ? DateTime.parse(json['date_of_join'] as String)
-          : DateTime.now(),
+        dateOfBirth: (json['date_of_birth'] ?? '').toString(),
+        joiningDate: (json['date_of_join'] ?? '').toString(),
       department: (json['department'] ?? '').toString(),
       designation: (json['designation'] ?? '').toString(),
         cadre: (json['cadre'] ?? json['designation'] ?? '').toString(),

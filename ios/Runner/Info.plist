@@ -5,6 +5,22 @@
 		<!-- Location -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Location is required to mark attendance</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LMS tracks your work location hourly during active shifts to verify attendance.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>LMS tracks your work location hourly during active shifts to verify attendance.</string>
+
+	<!-- Background execution -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>lms_hourly_location</string>
+	</array>
 
 	<!-- Face ID / Touch ID -->
 	<key>NSFaceIDUsageDescription</key>

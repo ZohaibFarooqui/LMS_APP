@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:intl/intl.dart';
 
 /// Enhanced profile entity with additional fields
 ///
@@ -50,8 +51,10 @@ class EnhancedProfileEntity extends Equatable {
   /// Gender: 'M' for Male, 'F' for Female
   final String gender;
 
-  final DateTime dateOfBirth;
-  final DateTime joiningDate;
+  /// Raw date strings as returned by backend (e.g. "27-oct-2025").
+  /// We keep these as-is for display and only parse when needed.
+  final String dateOfBirth;
+  final String joiningDate;
   final String department;
   final String designation;
   final String cadre;
@@ -77,12 +80,12 @@ class EnhancedProfileEntity extends Equatable {
   // Additional fields from API
   final String? fatherName;
   final String? nicNo;
-  final DateTime? nicExpDate;
+  final String? nicExpDate;
   final String? eobiNo;
   final String? uicCardNo;
   final int? salary;
   final String? managerAboveSts;
-  final DateTime? confirmationDate;
+  final String? confirmationDate;
   final String? companyAccommodation;
   final String? compcnm;
   final int? compc;
@@ -98,19 +101,24 @@ class EnhancedProfileEntity extends Equatable {
 
   /// Get years of service (integer, for backward compatibility)
   int get yearsOfService {
-    return DateTime.now().difference(joiningDate).inDays ~/ 365;
+    final parsed = _parseBackendDate(joiningDate);
+    if (parsed == null) return 0;
+    return DateTime.now().difference(parsed).inDays ~/ 365;
   }
 
   /// Get formatted experience string (e.g., "1 year 6 months", "3 months", "1 year")
   String get experienceFormatted {
+    final parsed = _parseBackendDate(joiningDate);
+    if (parsed == null) return 'Not available';
+
     final now = DateTime.now();
 
     // Calculate total months
     int totalMonths =
-        (now.year - joiningDate.year) * 12 + (now.month - joiningDate.month);
+        (now.year - parsed.year) * 12 + (now.month - parsed.month);
 
     // Adjust if current day is before joining day in the month
-    if (now.day < joiningDate.day) {
+    if (now.day < parsed.day) {
       totalMonths--;
     }
 
@@ -163,8 +171,8 @@ class EnhancedProfileEntity extends Equatable {
     String? email,
     String? phoneNumber,
     String? gender,
-    DateTime? dateOfBirth,
-    DateTime? joiningDate,
+    String? dateOfBirth,
+    String? joiningDate,
     String? department,
     String? designation,
     String? cadre,
@@ -178,12 +186,12 @@ class EnhancedProfileEntity extends Equatable {
     WorkSchedule? workSchedule,
     String? fatherName,
     String? nicNo,
-    DateTime? nicExpDate,
+    String? nicExpDate,
     String? eobiNo,
     String? uicCardNo,
     int? salary,
     String? managerAboveSts,
-    DateTime? confirmationDate,
+    String? confirmationDate,
     String? companyAccommodation,
     String? compcnm,
     int? compc,
@@ -230,8 +238,8 @@ class EnhancedProfileEntity extends Equatable {
       'email': email,
       'phone_number': phoneNumber,
       'gender': gender,
-      'date_of_birth': dateOfBirth.toIso8601String(),
-      'joining_date': joiningDate.toIso8601String(),
+      'date_of_birth': dateOfBirth,
+      'joining_date': joiningDate,
       'department': department,
       'designation': designation,
       'cadre': cadre,
@@ -243,6 +251,17 @@ class EnhancedProfileEntity extends Equatable {
       'address': address?.toJson(),
       'reporting_to': reportingTo?.toJson(),
       'work_schedule': workSchedule?.toJson(),
+      'father_name': fatherName,
+      'nic_no': nicNo,
+      'nic_exp_date': nicExpDate,
+      'eobi_no': eobiNo,
+      'uic_card_no': uicCardNo,
+      'salary': salary,
+      'manager_above_sts': managerAboveSts,
+      'confirmation_date': confirmationDate,
+      'company_accomodation': companyAccommodation,
+      'compcnm': compcnm,
+      'compc': compc,
     };
   }
 
@@ -254,8 +273,8 @@ class EnhancedProfileEntity extends Equatable {
       email: json['email'] as String,
       phoneNumber: json['phone_number'] as String,
       gender: json['gender'] as String,
-      dateOfBirth: DateTime.parse(json['date_of_birth'] as String),
-      joiningDate: DateTime.parse(json['joining_date'] as String),
+      dateOfBirth: json['date_of_birth'] as String,
+      joiningDate: json['joining_date'] as String,
       department: json['department'] as String,
       designation: json['designation'] as String,
       cadre: json['cadre'] as String,
@@ -279,6 +298,17 @@ class EnhancedProfileEntity extends Equatable {
       workSchedule: json['work_schedule'] != null
           ? WorkSchedule.fromJson(json['work_schedule'] as Map<String, dynamic>)
           : null,
+      fatherName: json['father_name'] as String?,
+      nicNo: json['nic_no'] as String?,
+      nicExpDate: json['nic_exp_date'] as String?,
+      eobiNo: json['eobi_no'] as String?,
+      uicCardNo: json['uic_card_no'] as String?,
+      salary: json['salary'] as int?,
+      managerAboveSts: json['manager_above_sts'] as String?,
+      confirmationDate: json['confirmation_date'] as String?,
+      companyAccommodation: json['company_accomodation'] as String?,
+      compcnm: json['compcnm'] as String?,
+      compc: json['compc'] as int?,
     );
   }
 
@@ -315,6 +345,26 @@ class EnhancedProfileEntity extends Equatable {
     compcnm,
     compc,
   ];
+}
+
+/// Helper to parse both ISO strings and "dd-MMM-yyyy" backend strings.
+DateTime? _parseBackendDate(String? value) {
+  if (value == null) return null;
+  final trimmed = value.trim();
+  if (trimmed.isEmpty || trimmed == '-') return null;
+
+  // Try ISO first
+  try {
+    return DateTime.parse(trimmed);
+  } catch (_) {
+    // Try ORDS-style "dd-MMM-yyyy" (e.g. "27-oct-2025")
+    try {
+      final fmt = DateFormat('dd-MMM-yyyy');
+      return fmt.parse(trimmed);
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 /// Emergency contact information

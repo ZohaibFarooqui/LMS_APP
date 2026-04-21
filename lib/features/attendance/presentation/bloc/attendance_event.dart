@@ -8,11 +8,11 @@ abstract class AttendanceEvent extends Equatable {
 }
 
 class AttendanceRequested extends AttendanceEvent {
-  const AttendanceRequested();
+  const AttendanceRequested({this.from, this.to});
+
+  final DateTime? from;
+  final DateTime? to;
+
+  @override
+  List<Object?> get props => [from, to];
 }
-
-
-
-
-
-

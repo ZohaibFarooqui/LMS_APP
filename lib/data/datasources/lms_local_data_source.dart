@@ -67,7 +67,7 @@ class LmsLocalDataSource {
     return DashboardSummary(
       empPk: safeInt(data['empPk'] ?? data['emp_pk']),
       cardNo1: safeString(
-        data['cardNo1'] ?? data['card_no1'] ?? data['cardNumber'],
+        data['cardNo1'] ?? data['card_no'] ?? data['cardNumber'],
       ),
       empNo: safeString(
         data['empNo'] ?? data['emp_no'] ?? data['employeeCode'],
@@ -168,14 +168,14 @@ class LmsLocalDataSource {
       'cadre': profile.cadre,
       'department': profile.department,
       'designation': profile.designation,
-      'joiningDate': profile.joiningDate.toIso8601String(),
+      'joiningDate': profile.joiningDate,
       'location': profile.location,
       'cardNumber': profile.cardNumber,
       'email': profile.email,
       'phoneNumber': profile.phoneNumber,
       'gender': profile.gender,
       'branch': profile.branch,
-      'dateOfBirth': profile.dateOfBirth.toIso8601String(),
+      'dateOfBirth': profile.dateOfBirth,
     });
   }
 
@@ -189,8 +189,8 @@ class LmsLocalDataSource {
       email: data['email'] as String,
       phoneNumber: data['phoneNumber'] as String,
       gender: data['gender'] as String? ?? 'M',
-      dateOfBirth: DateTime.parse(data['dateOfBirth'] as String),
-      joiningDate: DateTime.parse(data['joiningDate'] as String),
+      dateOfBirth: data['dateOfBirth'] as String? ?? '-',
+      joiningDate: data['joiningDate'] as String? ?? '-',
       department: data['department'] as String,
       designation: data['designation'] as String,
       cadre: data['cadre'] as String? ?? '',

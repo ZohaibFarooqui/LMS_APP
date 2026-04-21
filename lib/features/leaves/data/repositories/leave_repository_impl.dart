@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import '../../domain/entities/leave_balance.dart';
 import '../../domain/entities/leave_request.dart';
 import '../../domain/repositories/leave_repository.dart';
@@ -39,17 +40,25 @@ class LeaveRepositoryImpl implements LeaveRepository {
   }
 
   @override
-  Future<void> submitRequest(LeaveRequest request) async {
+  Future<void> submitRequest(LeaveRequest request, {TimeOfDay? fromTime, TimeOfDay? toTime}) async {
     final empPk = await _empPkProvider() ?? '';
+    final body = <String, dynamic>{
+      'type': request.type,
+      'from_date': request.fromDate.toIso8601String().split('T').first,
+      'to_date': request.toDate.toIso8601String().split('T').first,
+      'half_day': request.halfDay,
+      'reason': request.reason,
+    };
+    
+    // Add time fields if half-day and times are provided
+    if (request.halfDay && fromTime != null && toTime != null) {
+      body['from_time'] = '${fromTime.hour.toString().padLeft(2, '0')}:${fromTime.minute.toString().padLeft(2, '0')}';
+      body['to_time'] = '${toTime.hour.toString().padLeft(2, '0')}:${toTime.minute.toString().padLeft(2, '0')}';
+    }
+    
     await _remote.submitRequest(
       empPk: empPk,
-      body: {
-        'type': request.type,
-        'from_date': request.fromDate.toIso8601String().split('T').first,
-        'to_date': request.toDate.toIso8601String().split('T').first,
-        'half_day': request.halfDay,
-        'reason': request.reason,
-      },
+      body: body,
     );
   }
 }

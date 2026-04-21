@@ -43,13 +43,14 @@ class LoginFormSubmitted extends LoginFormEvent {
   const LoginFormSubmitted();
 }
 
-/// Event to initialize form with remembered username
+/// Event to initialize form with remembered credentials
 class LoginFormInitialized extends LoginFormEvent {
-  const LoginFormInitialized({this.rememberedUsername});
+  const LoginFormInitialized({this.rememberedUsername, this.rememberedPassword});
 
   final String? rememberedUsername;
+  final String? rememberedPassword;
 
   @override
-  List<Object?> get props => [rememberedUsername];
+  List<Object?> get props => [rememberedUsername, rememberedPassword];
 }
 

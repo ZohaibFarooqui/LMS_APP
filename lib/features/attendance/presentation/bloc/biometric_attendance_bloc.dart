@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 
@@ -12,6 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/services/attendance_file_service.dart';
+import '../../../../core/services/location_tracking_service.dart';
 import '../../../../core/services/attendance_validation_service.dart';
 import '../../../../core/services/biometric_service.dart';
 import '../../../../core/services/geocoding_service.dart';
@@ -19,7 +21,9 @@ import '../../../../core/services/location_service.dart';
 import '../../../../core/services/secure_storage_service.dart';
 import '../../../../di/service_locator.dart';
 import '../../../authentication/domain/repositories/auth_repository.dart';
+import '../../../face_auth/domain/entities/face_identify_response.dart';
 import '../../../face_auth/domain/usecases/face_status_usecase.dart';
+import '../../../face_auth/domain/usecases/identify_face_usecase.dart';
 import '../../../face_auth/domain/usecases/verify_face_usecase.dart';
 import '../../../face_verification/data/datasources/face_camera_datasource.dart';
 import '../../domain/entities/biometric_attendance.dart';
@@ -45,11 +49,13 @@ class BiometricAttendanceBloc
     required AttendanceValidationService validationService,
     required AppConfig appConfig,
     required String employeeId,
+    this.identifyMode = false,
     LocationService? locationService,
     AuthRepository? authRepository,
     MarkBiometricAttendanceUseCase? markBiometricAttendanceUseCase,
     FaceStatusUseCase? faceStatusUseCase,
     VerifyFaceUseCase? verifyFaceUseCase,
+    IdentifyFaceUseCase? identifyFaceUseCase,
     FaceCameraDataSource? faceCameraDataSource,
   }) : _biometricService = biometricService,
        _geocodingService = geocodingService,
@@ -62,10 +68,10 @@ class BiometricAttendanceBloc
        _markBiometricAttendanceUseCase =
            markBiometricAttendanceUseCase ??
            getIt<MarkBiometricAttendanceUseCase>(),
-       _faceStatusUseCase =
-           faceStatusUseCase ?? getIt<FaceStatusUseCase>(),
-       _verifyFaceUseCase =
-           verifyFaceUseCase ?? getIt<VerifyFaceUseCase>(),
+       _faceStatusUseCase = faceStatusUseCase ?? getIt<FaceStatusUseCase>(),
+       _verifyFaceUseCase = verifyFaceUseCase ?? getIt<VerifyFaceUseCase>(),
+       _identifyFaceUseCase =
+           identifyFaceUseCase ?? getIt<IdentifyFaceUseCase>(),
        _faceCameraDataSource =
            faceCameraDataSource ?? getIt<FaceCameraDataSource>(),
        super(const BiometricAttendanceState()) {
@@ -90,7 +96,9 @@ class BiometricAttendanceBloc
   final MarkBiometricAttendanceUseCase _markBiometricAttendanceUseCase;
   final FaceStatusUseCase _faceStatusUseCase;
   final VerifyFaceUseCase _verifyFaceUseCase;
+  final IdentifyFaceUseCase _identifyFaceUseCase;
   final FaceCameraDataSource _faceCameraDataSource;
+  final bool identifyMode;
 
   CameraController? _cameraController;
   bool _isCapturing = false;
@@ -105,9 +113,40 @@ class BiometricAttendanceBloc
     emit(state.copyWith(status: BiometricAttendanceStatus.checkingFaceStatus));
 
     try {
-      // Get card_no1 from secure storage
+      if (identifyMode) {
+        // IDENTIFY MODE: Skip face status check, go straight to ready
+        debugPrint('BiometricAttendanceBloc: Identify mode — skipping face status check');
+
+        final isLocationEnabled = await _locationService.isLocationServiceEnabled();
+        final biometrics = await _biometricService.getAvailableBiometrics();
+
+        emit(
+          state.copyWith(
+            status: BiometricAttendanceStatus.ready,
+            isFaceRegistered: true,
+            hasFaceId: biometrics.contains(BiometricType.face),
+            hasFingerprint: biometrics.contains(BiometricType.fingerprint),
+            availableBiometrics: biometrics,
+            isLocationServiceEnabled: isLocationEnabled,
+          ),
+        );
+
+        if (isLocationEnabled) {
+          add(const BiometricAttendanceLocationRequested());
+        }
+
+        // Auto-trigger mark immediately in identify mode
+        add(const BiometricAttendanceMarkRequested());
+        return;
+      }
+
+      // NORMAL MODE: Check face registration status
+      // Get card_no from secure storage — prefer card_no1 (set by Mark Attendance
+      // dialog on login page), fall back to card_no (set during normal login).
       final secureStorage = getIt<SecureStorageService>();
-      final cardNo1 = await secureStorage.read('card_no1') ?? '';
+      final cardNo1 = await secureStorage.read('card_no1') ??
+          await secureStorage.read('card_no') ??
+          '';
 
       if (cardNo1.isEmpty) {
         emit(
@@ -119,22 +158,25 @@ class BiometricAttendanceBloc
         return;
       }
 
+      // Scope the validation service to this user so different employees
+      // on the same phone don't share check-in / check-out state.
+      _validationService.setCurrentUser(cardNo1);
+
       // STEP 1: Check face registration status via API
       debugPrint(
-        'BiometricAttendanceBloc: Checking face status for card_no1: $cardNo1',
+        'BiometricAttendanceBloc: Checking face status for card_no: $cardNo1',
       );
       final faceStatusResponse = await _faceStatusUseCase.call(cardNo1);
 
       if (!faceStatusResponse.isRegistered) {
         // Face not registered - STOP flow
         debugPrint(
-          'BiometricAttendanceBloc: Face not registered for card_no1: $cardNo1',
+          'BiometricAttendanceBloc: Face not registered for card_no: $cardNo1',
         );
         emit(
           state.copyWith(
             status: BiometricAttendanceStatus.faceNotRegistered,
-            errorMessage:
-                'Face not registered. Please register face first.',
+            errorMessage: 'Face not registered. Please register face first.',
             isFaceRegistered: false,
           ),
         );
@@ -143,12 +185,12 @@ class BiometricAttendanceBloc
 
       // Face is registered - proceed to ready state
       debugPrint(
-        'BiometricAttendanceBloc: Face is registered for card_no1: $cardNo1',
+        'BiometricAttendanceBloc: Face is registered for card_no: $cardNo1',
       );
 
       // Check location service status
-      final isLocationEnabled =
-          await _locationService.isLocationServiceEnabled();
+      final isLocationEnabled = await _locationService
+          .isLocationServiceEnabled();
 
       // Get available biometric types (for UI display)
       final biometrics = await _biometricService.getAvailableBiometrics();
@@ -250,16 +292,79 @@ class BiometricAttendanceBloc
     debugPrint('Attendance type: ${state.attendanceType}');
     debugPrint('Can mark: ${state.canMarkAttendance}');
 
-    // Verify face is registered (should already be checked in initialization)
-    if (!state.isFaceRegistered) {
+    // In identify mode, skip face registration check and card_no lookup
+    String cardNo1 = '';
+    if (!identifyMode) {
+      // Verify face is registered (should already be checked in initialization)
+      if (!state.isFaceRegistered) {
+        emit(
+          state.copyWith(
+            status: BiometricAttendanceStatus.faceNotRegistered,
+            errorMessage: 'Face not registered. Please register face first.',
+          ),
+        );
+        return;
+      }
+
+      // Get card_no — prefer card_no1, fall back to card_no
+      final secureStorage = getIt<SecureStorageService>();
+      cardNo1 = await secureStorage.read('card_no1') ??
+          await secureStorage.read('card_no') ??
+          '';
+
+      if (cardNo1.isEmpty) {
+        emit(
+          state.copyWith(
+            status: BiometricAttendanceStatus.error,
+            errorMessage: 'Employee ID not found. Please login again.',
+          ),
+        );
+        return;
+      }
+
+      // Validate duplicate check-in/check-out using latest persisted status
+      final refreshedStatus = _validationService.getTodayStatus();
       emit(
         state.copyWith(
-          status: BiometricAttendanceStatus.faceNotRegistered,
-          errorMessage:
-              'Face not registered. Please register face first.',
+          hasCheckedInToday: refreshedStatus.hasCheckedIn,
+          hasCheckedOutToday: refreshedStatus.hasCheckedOut,
+          todayCheckInTime: refreshedStatus.checkInTime,
+          todayCheckOutTime: refreshedStatus.checkOutTime,
         ),
       );
-      return;
+
+      final latitude =
+          state.locationInfo?.latitude ?? _appConfig.defaultGeoLatitude;
+      final longitude =
+          state.locationInfo?.longitude ?? _appConfig.defaultGeoLongitude;
+
+      AttendanceValidationResult validationResult;
+      if (state.attendanceType == 'check_in') {
+        validationResult = _validationService.canCheckIn(
+          latitude: latitude,
+          longitude: longitude,
+        );
+      } else {
+        if (!refreshedStatus.hasCheckedIn) {
+          validationResult = const AttendanceValidationResult(
+            canProceed: false,
+            reason: 'You must check in first before checking out',
+            errorType: AttendanceErrorType.noCheckIn,
+          );
+        } else {
+          validationResult = _validationService.canCheckOut();
+        }
+      }
+
+      if (!validationResult.canProceed) {
+        emit(
+          state.copyWith(
+            status: BiometricAttendanceStatus.ready,
+            errorMessage: validationResult.reason,
+          ),
+        );
+        return;
+      }
     }
 
     // Check location service status
@@ -276,66 +381,11 @@ class BiometricAttendanceBloc
       return;
     }
 
-    // Get card_no1
-    final secureStorage = getIt<SecureStorageService>();
-    final cardNo1 = await secureStorage.read('card_no1') ?? '';
-
-    if (cardNo1.isEmpty) {
-      emit(
-        state.copyWith(
-          status: BiometricAttendanceStatus.error,
-          errorMessage: 'Employee ID not found. Please login again.',
-        ),
-      );
-      return;
-    }
-
-    // Validate duplicate check-in/check-out using latest persisted status
-    final refreshedStatus = _validationService.getTodayStatus();
-    emit(
-      state.copyWith(
-        hasCheckedInToday: refreshedStatus.hasCheckedIn,
-        hasCheckedOutToday: refreshedStatus.hasCheckedOut,
-        todayCheckInTime: refreshedStatus.checkInTime,
-        todayCheckOutTime: refreshedStatus.checkOutTime,
-      ),
-    );
-
     // Use location if available, otherwise use default coordinates
     final latitude =
         state.locationInfo?.latitude ?? _appConfig.defaultGeoLatitude;
     final longitude =
         state.locationInfo?.longitude ?? _appConfig.defaultGeoLongitude;
-
-    AttendanceValidationResult validationResult;
-    if (state.attendanceType == 'check_in') {
-      validationResult = _validationService.canCheckIn(
-        latitude: latitude,
-        longitude: longitude,
-      );
-    } else {
-      // Ensure check-out only when refreshed status says checked-in
-      if (!refreshedStatus.hasCheckedIn) {
-        validationResult = const AttendanceValidationResult(
-          canProceed: false,
-          reason: 'You must check in first before checking out',
-          errorType: AttendanceErrorType.noCheckIn,
-        );
-      } else {
-        validationResult = _validationService.canCheckOut();
-      }
-    }
-
-    if (!validationResult.canProceed) {
-      emit(
-        state.copyWith(
-          status: BiometricAttendanceStatus
-              .ready, // Keep ready so user can see the error and retry
-          errorMessage: validationResult.reason,
-        ),
-      );
-      return;
-    }
 
     // Try to get location if we don't have it yet
     if (state.locationInfo == null && !state.isLoadingLocation) {
@@ -355,17 +405,21 @@ class BiometricAttendanceBloc
       }
     }
 
+    // Wait for the user to see the location before starting face capture
+    await Future.delayed(const Duration(seconds: 2));
+
     // ============================================================
     // STEP 2: FACE VERIFICATION
     // ============================================================
 
     // Initialize camera for face capture
     try {
-      if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      if (_cameraController == null ||
+          !_cameraController!.value.isInitialized) {
         emit(
           state.copyWith(
             status: BiometricAttendanceStatus.capturingFaceFrames,
-            totalFramesToCapture: 5,
+            totalFramesToCapture: 20,
             capturedFramesCount: 0,
           ),
         );
@@ -393,13 +447,13 @@ class BiometricAttendanceBloc
       emit(
         state.copyWith(
           status: BiometricAttendanceStatus.capturingFaceFrames,
-          totalFramesToCapture: 5,
+          totalFramesToCapture: 20,
           capturedFramesCount: 0,
           errorMessage: null,
         ),
       );
 
-      const int numFrames = 5;
+      const int numFrames = 20;
       debugPrint(
         'BiometricAttendanceBloc: Starting face frame capture - $numFrames frames',
       );
@@ -441,7 +495,7 @@ class BiometricAttendanceBloc
         'BiometricAttendanceBloc: Captured ${base64Frames.length} frames, verifying...',
       );
 
-      // Verify face with backend
+      // Verify/Identify face with backend
       emit(
         state.copyWith(
           status: BiometricAttendanceStatus.verifyingFace,
@@ -450,49 +504,106 @@ class BiometricAttendanceBloc
         ),
       );
 
-      final verifyResponse = await _verifyFaceUseCase.call(
-        cardNo1: cardNo1,
-        frames: base64Frames,
-      );
+      // The employeeId to use for attendance marking
+      // In normal mode, use cardNo1 from secure storage (not _employeeId which
+      // may be a phone number from AuthBloc).  cardNo1 was already read above.
+      String effectiveEmployeeId = cardNo1.isNotEmpty ? cardNo1 : _employeeId;
 
-      debugPrint(
-        'BiometricAttendanceBloc: Face verification result - '
-        'isMatch: ${verifyResponse.isMatch}, '
-        'confidence: ${verifyResponse.confidence}, '
-        'message: ${verifyResponse.message}',
-      );
+      if (identifyMode) {
+        // IDENTIFY MODE: 1:N face search — returns who this person is
+        debugPrint('BiometricAttendanceBloc: Calling face identify (1:N)...');
+        final FaceIdentifyResponse identifyResponse =
+            await _identifyFaceUseCase.call(frames: base64Frames);
 
-      // Check verification result
-      if (!verifyResponse.isMatch) {
-        // Face verification failed - STOP flow, do NOT call attendance API
+        debugPrint(
+          'BiometricAttendanceBloc: Face identify result - '
+          'identified: ${identifyResponse.identified}, '
+          'card_no: ${identifyResponse.cardNo}, '
+          'emp_name: ${identifyResponse.empName}, '
+          'confidence: ${identifyResponse.confidence}',
+        );
+
+        if (!identifyResponse.identified || identifyResponse.cardNo == null) {
+          emit(
+            state.copyWith(
+              status: BiometricAttendanceStatus.faceVerificationFailed,
+              faceVerificationMessage:
+                  identifyResponse.message ?? 'Face not recognized',
+              faceVerificationConfidence: identifyResponse.confidence,
+              errorMessage:
+                  identifyResponse.message ??
+                  'Face not recognized. Please register your face first.',
+            ),
+          );
+          _isCapturing = false;
+          return;
+        }
+
+        // Use the identified card_no for attendance
+        effectiveEmployeeId = identifyResponse.cardNo!;
+        cardNo1 = effectiveEmployeeId;
+
+        // Scope validation service to identified user
+        _validationService.setCurrentUser(effectiveEmployeeId);
+
+        debugPrint(
+          'BiometricAttendanceBloc: Face identified as ${identifyResponse.empName} '
+          '(card_no: $effectiveEmployeeId)',
+        );
+
         emit(
           state.copyWith(
-            status: BiometricAttendanceStatus.faceVerificationFailed,
+            status: BiometricAttendanceStatus.markingAttendance,
             faceVerificationMessage:
-                verifyResponse.message ?? 'Face verification failed',
-            faceVerificationConfidence: verifyResponse.confidence,
-            errorMessage:
-                verifyResponse.message ?? 'Face verification failed. Please try again.',
+                'Face identified as ${identifyResponse.empName}',
+            faceVerificationConfidence: identifyResponse.confidence,
+            errorMessage: null,
           ),
         );
-        _isCapturing = false;
-        return;
+      } else {
+        // NORMAL MODE: 1:1 face verification
+        final verifyResponse = await _verifyFaceUseCase.call(
+          cardNo1: cardNo1,
+          frames: base64Frames,
+        );
+
+        debugPrint(
+          'BiometricAttendanceBloc: Face verification result - '
+          'isMatch: ${verifyResponse.isMatch}, '
+          'confidence: ${verifyResponse.confidence}, '
+          'message: ${verifyResponse.message}',
+        );
+
+        if (!verifyResponse.isMatch) {
+          emit(
+            state.copyWith(
+              status: BiometricAttendanceStatus.faceVerificationFailed,
+              faceVerificationMessage:
+                  verifyResponse.message ?? 'Face verification failed',
+              faceVerificationConfidence: verifyResponse.confidence,
+              errorMessage:
+                  verifyResponse.message ??
+                  'Face verification failed. Please try again.',
+            ),
+          );
+          _isCapturing = false;
+          return;
+        }
+
+        debugPrint(
+          'BiometricAttendanceBloc: Face verification succeeded - proceeding to mark attendance',
+        );
+
+        emit(
+          state.copyWith(
+            status: BiometricAttendanceStatus.markingAttendance,
+            faceVerificationMessage:
+                verifyResponse.message ?? 'Face verified successfully',
+            faceVerificationConfidence: verifyResponse.confidence,
+            errorMessage: null,
+          ),
+        );
       }
-
-      // Face verification succeeded - proceed to attendance marking
-      debugPrint(
-        'BiometricAttendanceBloc: Face verification succeeded - proceeding to mark attendance',
-      );
-
-      emit(
-        state.copyWith(
-          status: BiometricAttendanceStatus.markingAttendance,
-          faceVerificationMessage:
-              verifyResponse.message ?? 'Face verified successfully',
-          faceVerificationConfidence: verifyResponse.confidence,
-          errorMessage: null,
-        ),
-      );
 
       // ============================================================
       // STEP 3: MARK ATTENDANCE (only if face verification succeeded)
@@ -535,9 +646,9 @@ class BiometricAttendanceBloc
       // Mark attendance via API (biometric_type: 'face')
       BiometricAttendanceResponse? apiResponse;
       try {
-        debugPrint('BiometricAttendanceBloc: Calling attendance API...');
+        debugPrint('BiometricAttendanceBloc: Calling attendance API for $effectiveEmployeeId...');
         apiResponse = await _markBiometricAttendanceUseCase.call(
-          employeeId: _employeeId,
+          employeeId: effectiveEmployeeId,
           attendanceType: state.attendanceType,
           biometricType: 'face', // Always 'face' for face login
           locationInfo: locationInfoToSave,
@@ -571,7 +682,7 @@ class BiometricAttendanceBloc
 
       // Save attendance to local file (as backup/offline record)
       final fileResult = await _attendanceFileService.saveAttendance(
-        employeeId: _employeeId,
+        employeeId: effectiveEmployeeId,
         attendanceType: state.attendanceType,
         biometricType: 'face',
         locationInfo: locationInfoToSave,
@@ -622,6 +733,14 @@ class BiometricAttendanceBloc
         debugPrint(
           'Success state emitted. Status: ${newState.status}, HasCheckedIn: ${newState.hasCheckedInToday}, AttendanceType: ${newState.attendanceType}',
         );
+
+        // Start/stop background location tracking based on what was just marked
+        final trackingService = getIt<LocationTrackingService>();
+        if (state.attendanceType == 'check_in' && (apiResponse?.success ?? false)) {
+          unawaited(trackingService.startTracking(effectiveEmployeeId));
+        } else if (state.attendanceType == 'check_out' || todayStatus.hasCheckedOut) {
+          unawaited(trackingService.stopTracking());
+        }
       } else {
         final errorMsg = apiResponse?.message ?? fileResult.message;
         debugPrint('Failed to save attendance: $errorMsg');
@@ -634,7 +753,9 @@ class BiometricAttendanceBloc
         );
       }
     } catch (e) {
-      debugPrint('BiometricAttendanceBloc: Error during attendance marking: $e');
+      debugPrint(
+        'BiometricAttendanceBloc: Error during attendance marking: $e',
+      );
       emit(
         state.copyWith(
           status: BiometricAttendanceStatus.error,
@@ -674,7 +795,9 @@ class BiometricAttendanceBloc
         await _faceCameraDataSource.disposeCamera(_cameraController!);
         _cameraController = null;
       } catch (e) {
-        debugPrint('BiometricAttendanceBloc: Error disposing camera on reset: $e');
+        debugPrint(
+          'BiometricAttendanceBloc: Error disposing camera on reset: $e',
+        );
       }
     }
 
@@ -689,7 +812,7 @@ class BiometricAttendanceBloc
         faceVerificationMessage: null,
         faceVerificationConfidence: null,
         capturedFramesCount: 0,
-        totalFramesToCapture: 5,
+        totalFramesToCapture: 20,
       ),
     );
 
@@ -717,7 +840,9 @@ class BiometricAttendanceBloc
         await _faceCameraDataSource.disposeCamera(_cameraController!);
         _cameraController = null;
       } catch (e) {
-        debugPrint('BiometricAttendanceBloc: Error disposing camera on close: $e');
+        debugPrint(
+          'BiometricAttendanceBloc: Error disposing camera on close: $e',
+        );
       }
     }
     return super.close();

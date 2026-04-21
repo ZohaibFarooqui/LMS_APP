@@ -1,13 +1,12 @@
 class AppConfig {
   const AppConfig({
-    this.baseUrl = 'http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/',
-    // IMPORTANT: For Android devices, use your computer's IP address instead of localhost/127.0.0.1
-    // Example: 'http://192.168.1.100:8000' (replace with your actual IP)
-    // Find your IP: Windows (ipconfig) or Linux/Mac (ifconfig)
-    // For emulator: localhost or 127.0.0.1 works
-    // For physical device: MUST use your computer's local network IP (e.g., 192.168.x.x)
-    this.faceAuthBaseUrl =
-        "http://10.0.0.120:8000", // FastAPI face recognition backend - CHANGE TO YOUR IP FOR PHYSICAL DEVICES
+    // this.baseUrl = 'http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/',
+    // NOTE: Use PC LAN IP (not 127.0.0.1) — physical devices can't reach localhost.
+    // Run `ipconfig` on Windows to find your IPv4 Address, e.g. 10.0.0.120
+    // Emulator only: you can use http://10.0.2.2:8000 (maps to host 127.0.0.1)
+    // this.baseUrl = 'http://10.0.0.120:8001',
+    this.baseUrl = 'http://apps.d-tech.com.pk:8001',
+    this.faceAuthBaseUrl = 'http://apps.d-tech.com.pk:8002',
     this.appName = 'YDC LMS',
     this.useMockData = false,
     this.defaultGeoLatitude = 24.85851,
@@ -17,7 +16,7 @@ class AppConfig {
     this.geoFenceMaxAccuracyMeters = 30.0,
     this.enableGeoFenceAntiSpoofing = true,
   });
-
+    
   final String baseUrl;
   final String faceAuthBaseUrl;
   final String appName;

@@ -75,7 +75,7 @@
   },
   "body": {
     "emp_pk": 106,
-    "card_no1": "10000106.1.2",
+    "card_no": "10000106.1.2",
     "emp_no": "F-84",
     "emp_name": "FURQAN HASAN",
     "date_of_join": "2019-11-21T19:00:00Z",
@@ -338,11 +338,11 @@
 | Field | Value |
 |-------|-------|
 | **Screen Name** | Leave Balance Screen |
-| **URL** | `http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/leave_data/{card_no1}` |
+| **URL** | `http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/leave_data/{card_no}` |
 | **Method** | GET |
-| **Endpoint** | `/leave_data/{card_no1}` |
+| **Endpoint** | `/leave_data/{card_no}` |
 
-**Request:** Path parameter `card_no1` (e.g., `/leave_data/50202309.1.2`)
+**Request:** Path parameter `card_no` (e.g., `/leave_data/50202309.1.2`)
 
 **Response JSON:**
 ```json
@@ -412,7 +412,7 @@
 ```
 
 **Remarks:** 
-- Fetches all leave type balances for the employee using `card_no1` as path parameter
+- Fetches all leave type balances for the employee using `card_no` as path parameter
 - Response uses ORDS REST API format with `body.items` array
 - Balance can be a decimal value (e.g., 54.5 for half-day leaves)
 - Used by both Leave Balance Screen and Dashboard (for graphs)
@@ -891,12 +891,12 @@
 
 | Screen Name | URL | Method | Endpoint | Request (Query / Body) | Response JSON | Remarks |
 |-------------|-----|--------|----------|----------------------|---------------|---------|
-| Sign In Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/login | POST | /login | `{"username": "3458000041", "password": "oracle1"}` | `{"body": {"status": "SUCCESS", "card_no1": "STRING"}}` | User authentication using phone number and passcode (no token) |
-| Dashboard | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/data/{card_no1} | GET | /data/{card_no1} |  | `{"body": {"emp_pk": "NUMBER", "card_no1": "STRING", "emp_no": "STRING", "emp_name": "STRING", "date_of_join": "ISO8601", "nic_no": "STRING", "designation": "STRING", "department": "STRING", "compcnm": "STRING", "compc": "NUMBER", "branch": "NUMBER", "brnchnm": "STRING", "hod": "NUMBER", "hod_nm": "STRING"}}` | Employee dashboard information |
+| Sign In Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/login | POST | /login | `{"username": "3458000041", "password": "oracle1"}` | `{"body": {"status": "SUCCESS", "card_no": "STRING"}}` | User authentication using phone number and passcode (no token) |
+| Dashboard | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/data/{card_no} | GET | /data/{card_no} |  | `{"body": {"emp_pk": "NUMBER", "card_no": "STRING", "emp_no": "STRING", "emp_name": "STRING", "date_of_join": "ISO8601", "nic_no": "STRING", "designation": "STRING", "department": "STRING", "compcnm": "STRING", "compc": "NUMBER", "branch": "NUMBER", "brnchnm": "STRING", "hod": "NUMBER", "hod_nm": "STRING"}}` | Employee dashboard information |
 | Biometric Attendance Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/attendance/biometric | POST | /attendance/biometric | `{"emp_pk": "NUMBER", "attendance_type": "check_in\|check_out", "biometric_type": "fingerprint\|face", "location": {"latitude": "NUMBER", "longitude": "NUMBER", "accuracy": "NUMBER", "timestamp": "ISO8601", "address": "STRING", "street_address": "STRING", "locality": "STRING", "sub_locality": "STRING", "postal_code": "STRING", "country": "STRING", "nearest_landmark": "STRING", "famous_place": "STRING", "distance_to_landmark": "NUMBER", "formatted_address": "STRING"}, "timestamp": "ISO8601", "device_id": "STRING", "device_model": "STRING", "app_version": "STRING"}` | `{"body": {"attendance_id": "STRING", "marked_at": "ISO8601", "location_verified": true, "biometric_verified": true}}` | Marks biometric attendance with location and device info |
 | Attendance History Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/attendance/report | GET | /attendance/report | emp_pk=NUMBER&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD | `{"body": {"records": [{"date": "YYYY-MM-DD", "shift": "STRING", "day": 1, "time_in": "HH:MM:SS", "time_out": "HH:MM:SS", "work_hours": "HH:MM", "late_arrival": "HH:MM", "approved_hours": "HH:MM", "remarks": "STRING", "is_absent": false, "check_in_location": {"latitude": "NUMBER", "longitude": "NUMBER", "address": "STRING", "landmark": "STRING"}, "check_out_location": {"latitude": "NUMBER", "longitude": "NUMBER", "address": "STRING", "landmark": "STRING"}}]}}` | Attendance records by date range |
 | Attendance Summary | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/attendance/summary | GET | /attendance/summary | emp_pk=NUMBER&from_date=YYYY-MM-DD&to_date=YYYY-MM-DD | `{"body": {"casual_leave": 2, "earned_leave": 10, "medical_leave": 5, "compensatory_leave": 0, "sick_leave": 3, "loss_of_pay": 0, "absent": 1, "outdoor_duty": 2, "approved_extra_work": 5, "late_count": 3, "total_working_days": 22, "present_days": 19}}` | Attendance and leave summary |
-| Leave Balance Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/leave_data/{card_no1} | GET | /leave_data/{card_no1} |  | `{"body": {"items": [{"emp_pk": "NUMBER", "card_no": "NUMBER", "emp_name": "STRING", "department": "STRING", "year": "NUMBER", "compc": "NUMBER", "brnch": "NUMBER", "leave_type_pk": "NUMBER", "leave_type": "STRING", "leave_desc": "STRING", "previous_bal": "NUMBER", "new_entitled": "NUMBER", "total": "NUMBER", "allowd": "NUMBER", "total_available": "NUMBER", "availed": "NUMBER", "balance": "NUMBER"}]}}` | Employee leave balances using card_no1. Response in ORDS format with items array. Balance can be decimal (e.g., 54.5). Used by Leave Balance Screen and Dashboard graphs |
+| Leave Balance Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/leave_data/{card_no} | GET | /leave_data/{card_no} |  | `{"body": {"items": [{"emp_pk": "NUMBER", "card_no": "NUMBER", "emp_name": "STRING", "department": "STRING", "year": "NUMBER", "compc": "NUMBER", "brnch": "NUMBER", "leave_type_pk": "NUMBER", "leave_type": "STRING", "leave_desc": "STRING", "previous_bal": "NUMBER", "new_entitled": "NUMBER", "total": "NUMBER", "allowd": "NUMBER", "total_available": "NUMBER", "availed": "NUMBER", "balance": "NUMBER"}]}}` | Employee leave balances using card_no. Response in ORDS format with items array. Balance can be decimal (e.g., 54.5). Used by Leave Balance Screen and Dashboard graphs |
 | Leave History Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/leave/applications | GET | /leave/applications | emp_pk=NUMBER&status=all\|pending\|approved\|rejected | `{"body": {"requests": [{"id": "STRING", "type": "STRING", "from_date": "YYYY-MM-DD", "to_date": "YYYY-MM-DD", "days": "NUMBER", "half_day": false, "reason": "STRING", "status": "STRING", "applied_on": "ISO8601", "approved_by": "STRING", "approved_on": "ISO8601", "remarks": "STRING"}]}}` | Leave application history |
 | Apply Leave Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/leave/applications | POST | /leave/applications | `{"emp_pk": "NUMBER", "type": "CL\|EL\|ML\|SL\|CP\|LWP", "from_date": "YYYY-MM-DD", "to_date": "YYYY-MM-DD", "half_day": false, "half_day_type": "first_half\|second_half", "reason": "STRING"}` | `{"body": {"request_id": "STRING", "status": "pending"}}` | Submit leave request |
 | Profile Screen | http://lms.yousufdewan.com:8080/ords/ws_tms/empdata/employee/profile | GET | /employee/profile | emp_pk=NUMBER | `{"body": {"emp_pk": "NUMBER", "emp_no": "STRING", "emp_name": "STRING", "email": "STRING", "phone": "STRING", "nic_no": "STRING", "date_of_birth": "YYYY-MM-DD", "date_of_join": "YYYY-MM-DD", "designation": "STRING", "department": "STRING", "branch": "STRING", "company": "STRING", "reporting_to": {"emp_pk": "NUMBER", "emp_name": "STRING", "designation": "STRING", "phone": "STRING"}, "emergency_contact": {"name": "STRING", "relation": "STRING", "phone": "STRING"}}}` | Employee complete profile |

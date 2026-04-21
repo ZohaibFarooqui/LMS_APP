@@ -33,7 +33,7 @@ class FaceVerificationPage extends StatelessWidget {
                     state.successMessage ?? 'Face verified successfully',
                   ),
                   backgroundColor: AppColors.success,
-                  duration: const Duration(seconds: 3),
+                  duration: const Duration(seconds: 2),
                 ),
               );
               // Return verification result to caller
@@ -46,7 +46,7 @@ class FaceVerificationPage extends StatelessWidget {
                     state.errorMessage ?? 'Face verification failed',
                   ),
                   backgroundColor: AppColors.error,
-                  duration: const Duration(seconds: 4),
+                  duration: const Duration(seconds: 2),
                 ),
               );
             } else if (state.status == FaceVerificationStatus.error &&
@@ -55,7 +55,7 @@ class FaceVerificationPage extends StatelessWidget {
                 SnackBar(
                   content: Text(state.errorMessage!),
                   backgroundColor: AppColors.error,
-                  duration: const Duration(seconds: 4),
+                  duration: const Duration(seconds: 2),
                 ),
               );
             }

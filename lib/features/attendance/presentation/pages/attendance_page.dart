@@ -24,6 +24,60 @@ class AttendancePage extends StatefulWidget {
 
 class _AttendancePageState extends State<AttendancePage> {
   DateTime _selectedDate = DateTime.now();
+  late DateTime _summaryFrom;
+  late DateTime _summaryTo;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _summaryFrom = DateTime(now.year, now.month, 1);
+    _summaryTo = DateTime(now.year, now.month + 1, 0);
+  }
+
+  void _onMonthChanged(BuildContext context, DateTime focusedDay) {
+    final start = DateTime(focusedDay.year, focusedDay.month, 1);
+    final end = DateTime(focusedDay.year, focusedDay.month + 1, 0);
+    setState(() {
+      _summaryFrom = start;
+      _summaryTo = end;
+    });
+    context.read<AttendanceBloc>().add(
+      AttendanceRequested(from: start, to: end),
+    );
+  }
+
+  Future<void> _pickDateRange(BuildContext context) async {
+    final now = DateTime.now();
+    // Clamp dates so they don't exceed lastDate (today)
+    final clampedFrom = _summaryFrom.isAfter(now) ? now : _summaryFrom;
+    final clampedTo = _summaryTo.isAfter(now) ? now : _summaryTo;
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      initialDateRange: DateTimeRange(start: clampedFrom, end: clampedTo),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme,
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _summaryFrom = picked.start;
+        _summaryTo = picked.end;
+      });
+      if (context.mounted) {
+        context.read<AttendanceBloc>().add(
+          AttendanceRequested(from: picked.start, to: picked.end),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +85,6 @@ class _AttendancePageState extends State<AttendancePage> {
       create: (_) => getIt<AttendanceBloc>()..add(const AttendanceRequested()),
       child: BlocBuilder<AttendanceBloc, AttendanceState>(
         buildWhen: (previous, current) {
-          // Only rebuild when records or status change
           return previous.records != current.records ||
               previous.status != current.status;
         },
@@ -41,23 +94,41 @@ class _AttendancePageState extends State<AttendancePage> {
             return const LoadingIndicator();
           }
 
-          // Cache expensive computations
-          final selectedRecord = _getSelectedDateRecord(state.records);
-          final monthlyCounts = _computeMonthlyCounts(
-            state.records,
-            _selectedDate,
-          );
+          final rangeCounts = _computeRangeCounts(state.records);
+
+          // Records for the selected date range, newest first
+          final rangeRecords = state.records
+              .where((r) {
+                final d = DateTime(r.date.year, r.date.month, r.date.day);
+                final from = DateTime(_summaryFrom.year, _summaryFrom.month, _summaryFrom.day);
+                final to = DateTime(_summaryTo.year, _summaryTo.month, _summaryTo.day);
+                return !d.isBefore(from) && !d.isAfter(to);
+              })
+              .toList()
+            ..sort((a, b) => b.date.compareTo(a.date));
 
           return RefreshIndicator(
             onRefresh: () async =>
-                context.read<AttendanceBloc>().add(const AttendanceRequested()),
+                context.read<AttendanceBloc>().add(AttendanceRequested(
+                  from: _summaryFrom,
+                  to: _summaryTo,
+                )),
             child: ListView(
               padding: EdgeInsets.all(16.w),
               children: [
-                // Biometric Attendance Button
+                // 1. Mark Attendance Button
                 const _BiometricAttendanceButton(),
                 SizedBox(height: 16.h),
-                // Calendar View
+
+                // 2. Date Range Filter
+                _DateRangeSelector(
+                  from: _summaryFrom,
+                  to: _summaryTo,
+                  onTap: () => _pickDateRange(context),
+                ),
+                SizedBox(height: 16.h),
+
+                // 3. Calendar View
                 const _SectionHeader(
                   title: 'Attendance Calendar',
                   icon: Icons.calendar_month_rounded,
@@ -71,28 +142,56 @@ class _AttendancePageState extends State<AttendancePage> {
                       _selectedDate = date;
                     });
                   },
+                  onPageChanged: (focusedDay) =>
+                      _onMonthChanged(context, focusedDay),
                 ),
-                SizedBox(height: 20.h),
-                // Selected Date Details (moved up, directly below calendar)
-                if (selectedRecord != null) ...[
-                  const _SectionHeader(
-                    title: 'Details',
-                    icon: Icons.info_outline_rounded,
-                  ),
-                  SizedBox(height: 12.h),
-                  _AttendanceDetailsCard(record: selectedRecord),
-                  SizedBox(height: 20.h),
-                ],
-                // Legend
+                SizedBox(height: 12.h),
+                // Legend inline below calendar
                 const _CalendarLegend(),
                 SizedBox(height: 20.h),
-                // Summary
+
+                // 4. Records list for the selected range
+                _SectionHeader(
+                  title: 'Daily Records (${rangeRecords.length})',
+                  icon: Icons.list_alt_rounded,
+                ),
+                SizedBox(height: 12.h),
+                if (rangeRecords.isEmpty)
+                  Container(
+                    padding: EdgeInsets.all(24.w),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(16.r),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'No records for selected period',
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white38
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  ...rangeRecords.map((r) => Padding(
+                    padding: EdgeInsets.only(bottom: 8.h),
+                    child: _AttendanceDetailsCard(record: r),
+                  )),
+                SizedBox(height: 20.h),
+
+                // 5. Summary
                 const _SectionHeader(
                   title: 'Summary',
                   icon: Icons.analytics_outlined,
                 ),
                 SizedBox(height: 12.h),
-                _SummaryGrid(counts: monthlyCounts),
+                _SummaryGrid(counts: rangeCounts),
                 SizedBox(height: 20.h),
               ],
             ),
@@ -102,32 +201,18 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  AttendanceRecord? _getSelectedDateRecord(List<AttendanceRecord> records) {
-    try {
-      return records.firstWhere(
-        (record) =>
-            DateFormatter.formatDate(record.date) ==
-            DateFormatter.formatDate(_selectedDate),
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
-  MonthlyStatusCounts _computeMonthlyCounts(
-    List<AttendanceRecord> records,
-    DateTime selectedDate,
-  ) {
+  MonthlyStatusCounts _computeRangeCounts(List<AttendanceRecord> records) {
     int present = 0;
     int late = 0;
     int halfDay = 0;
     int absent = 0;
 
+    final fromNorm = DateTime(_summaryFrom.year, _summaryFrom.month, _summaryFrom.day);
+    final toNorm = DateTime(_summaryTo.year, _summaryTo.month, _summaryTo.day);
+
     for (final record in records) {
-      if (record.date.year != selectedDate.year ||
-          record.date.month != selectedDate.month) {
-        continue;
-      }
+      final d = DateTime(record.date.year, record.date.month, record.date.day);
+      if (d.isBefore(fromNorm) || d.isAfter(toNorm)) continue;
 
       final status = _getStatus(record);
       switch (status) {
@@ -630,6 +715,63 @@ class MonthlyStatusCounts {
   final int late;
   final int halfDay;
   final int absent;
+}
+
+class _DateRangeSelector extends StatelessWidget {
+  const _DateRangeSelector({
+    required this.from,
+    required this.to,
+    required this.onTap,
+  });
+
+  final DateTime from;
+  final DateTime to;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12.r),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(
+            color: isDark ? Colors.white12 : Colors.grey.shade200,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.date_range_rounded,
+              size: 20.sp,
+              color: theme.primaryColor,
+            ),
+            SizedBox(width: 10.w),
+            Text(
+              '${DateFormatter.formatDate(from)}  -  ${DateFormatter.formatDate(to)}',
+              style: TextStyle(
+                fontSize: 13.sp,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            Icon(
+              Icons.edit_calendar_rounded,
+              size: 18.sp,
+              color: isDark ? Colors.white54 : AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _BiometricAttendanceButton extends StatelessWidget {

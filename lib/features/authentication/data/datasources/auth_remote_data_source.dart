@@ -28,11 +28,11 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       debugPrint('AuthRemoteDataSource: Base URL: ${_dio.options.baseUrl}');
 
       // Actual API specification:
-      // - Endpoint: POST /login
+      // - Endpoint: POST /auth/login
       // - Request body: {"username": "...", "password": "..."}
-      // - Response: {"body": {"status": "SUCCESS", "userid": "..."}}
+      // - Response: {"status": "SUCCESS", "card_no": "..."}
       // - No token in response
-      final endpoint = '/login';
+      final endpoint = '/auth/login';
 
       debugPrint('AuthRemoteDataSource: Calling endpoint: $endpoint');
       debugPrint('AuthRemoteDataSource: Request data: $requestData');
@@ -139,7 +139,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         // Try alternative field names
         cardNo1 =
             body['cardNo1']?.toString() ??
-            body['card_no1']?.toString() ??
+            body['card_no']?.toString() ??
             body['card_number']?.toString() ??
             body['cardNumber']?.toString();
       }
@@ -163,11 +163,32 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       final secureStorage = getIt<SecureStorageService>();
       await secureStorage.write('phone_number', finalUserid);
 
-      // Store card_no1 if available (used for all API calls)
+      // Store card_no if available (used for all API calls)
       if (cardNo1 != null && cardNo1.isNotEmpty) {
+        await secureStorage.write('card_no', cardNo1);
+        // Also store as card_no1 — face verification BLoC reads this key
         await secureStorage.write('card_no1', cardNo1);
-        debugPrint('AuthRemoteDataSource: Stored card_no1: $cardNo1');
+        // Also store as emp_pk — backend URLs use card_no for everything,
+        // and empPkProvider is used by leave-submit & attendance repos.
+        await secureStorage.write('emp_pk', cardNo1);
+        debugPrint(
+          'AuthRemoteDataSource: Stored card_no, card_no1 & emp_pk: $cardNo1',
+        );
       }
+
+      // Store additional login response fields from backend
+      final empName = body['emp_name']?.toString() ?? '';
+      if (empName.isNotEmpty) {
+        await secureStorage.write('emp_name', empName);
+      }
+      final faceRegistered = body['face_registered'] == true ? 'Y' : 'N';
+      await secureStorage.write('face_registered', faceRegistered);
+      final hrAdmin = body['hr_admin'] == true ? 'Y' : 'N';
+      await secureStorage.write('hr_admin', hrAdmin);
+      debugPrint(
+        'AuthRemoteDataSource: Stored emp_name: $empName, '
+        'face_registered: $faceRegistered, hr_admin: $hrAdmin',
+      );
 
       // Create user model with userid from response
       // Note: Full user details will be fetched from /data/{phoneNumber} endpoint later

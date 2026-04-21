@@ -1,3 +1,4 @@
+import '../../domain/entities/face_identify_response.dart';
 import '../../domain/entities/face_register_response.dart';
 import '../../domain/entities/face_status_response.dart';
 import '../../domain/entities/face_verify_response.dart';
@@ -36,6 +37,13 @@ class FaceRepositoryImpl implements FaceRepository {
   @override
   Future<FaceStatusResponse> getFaceStatus(String cardNo1) async {
     return await _remoteDataSource.getFaceStatus(cardNo1);
+  }
+
+  @override
+  Future<FaceIdentifyResponse> identifyFace({
+    required List<String> frames,
+  }) async {
+    return await _remoteDataSource.identifyFace(frames: frames);
   }
 }
 

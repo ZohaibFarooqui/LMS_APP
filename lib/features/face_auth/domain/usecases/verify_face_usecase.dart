@@ -11,8 +11,8 @@ class VerifyFaceUseCase {
     required String cardNo1,
     required List<String> frames,
   }) async {
-    if (frames.length < 5) {
-      throw Exception('Minimum 5 frames required for verification');
+    if (frames.length < 10) {
+      throw Exception('Minimum 10 frames required for verification');
     }
 
     return await _repository.verifyFace(

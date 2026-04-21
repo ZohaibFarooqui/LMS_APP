@@ -141,14 +141,14 @@ class MockApiService {
       cadre: 'Assistant Manager',
       department: 'Human Resources',
       designation: 'HR Specialist',
-      joiningDate: DateTime(2019, 1, 12),
+      joiningDate: '12-jan-2019',
       location: 'FTC Building',
       cardNumber: 'CARD-7788',
       email: 'sara.khan@ydc.com',
       phoneNumber: '+92-300-1234567',
       id: '',
       gender: '',
-      dateOfBirth: DateTime(2003, 05, 09),
+      dateOfBirth: '09-may-2003',
       branch: 'karachi',
     );
   }

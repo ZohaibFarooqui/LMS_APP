@@ -46,9 +46,9 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       return _mockApiService.fetchDashboard();
     }
 
-    // Get card_no1 from secure storage (stored during login)
+    // Get card_no from secure storage (stored during login)
     final secureStorage = getIt<SecureStorageService>();
-    final cardNo1 = await secureStorage.read('card_no1');
+    final cardNo1 = await secureStorage.read('card_no');
 
     if (cardNo1 == null || cardNo1.isEmpty) {
       throw Exception('Card number not found. Please login again.');
@@ -56,12 +56,12 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
 
     debugPrint('=== FETCHING DASHBOARD ===');
     debugPrint('Card number from storage: $cardNo1');
-    debugPrint('API URL: /data/$cardNo1');
+    debugPrint('API URL: /auth/dashboard/$cardNo1');
 
     try {
-      // Call real API: /data/{card_no1}
+      // Call real API: /data/{card_no}
       final response = await _client.get<Map<String, dynamic>>(
-        '/data/$cardNo1',
+        '/auth/dashboard/$cardNo1',
       );
 
       debugPrint('API Response received');
@@ -122,7 +122,7 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       debugPrint('Mapping response to DashboardSummary...');
       final summary = DashboardSummary(
         empPk: safeInt(body['emp_pk']),
-        cardNo1: safeString(body['card_no1']),
+        cardNo1: safeString(body['card_no']),
         empNo: safeString(body['emp_no']),
         empName: safeString(body['emp_name']),
         dateOfJoin: safeString(body['date_of_join']),
@@ -161,9 +161,9 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       return _mockApiService.fetchBalances();
     }
 
-    // Get card_no1 from secure storage
+    // Get card_no from secure storage
     final secureStorage = getIt<SecureStorageService>();
-    final cardNo1 = await secureStorage.read('card_no1');
+    final cardNo1 = await secureStorage.read('card_no');
 
     if (cardNo1 == null || cardNo1.isEmpty) {
       throw Exception('Card number not found. Please login again.');
@@ -171,7 +171,7 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
 
     try {
       final response = await _client.get<Map<String, dynamic>>(
-        '/leave_data/$cardNo1',
+        '/auth/leave-balances/$cardNo1',
       );
 
       final responseData = response.data;
@@ -232,14 +232,16 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       await Future<void>.delayed(const Duration(milliseconds: 400));
       return;
     }
+    final secureStorage = getIt<SecureStorageService>();
+    final cardNo1 = await secureStorage.read('card_no') ?? '';
     await _client.post(
-      '/leave/applications',
+      '/auth/apply-leave/$cardNo1',
       data: {
-        'type': request.type,
-        'fromDate': request.fromDate.toIso8601String(),
-        'toDate': request.toDate.toIso8601String(),
-        'halfDay': request.halfDay,
+        'from_date': request.fromDate.toIso8601String().split('T')[0],
+        'to_date': request.toDate.toIso8601String().split('T')[0],
         'reason': request.reason,
+        'type': request.type,
+        'half_day': request.halfDay,
       },
     );
   }
@@ -249,8 +251,10 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
     if (_config.useMockData) {
       return _mockApiService.fetchAttendance(from, to);
     }
-    final response = await _client.get<List<dynamic>>('/attendance/report');
-    throw UnimplementedError('Map attendance ${response.data}');
+    // Attendance history is fetched via the dedicated AttendanceRemoteDataSource
+    // which loops day-by-day using /auth/attendance/report/{card_no}/{date}.
+    // Return empty list here as a fallback.
+    return [];
   }
 
   @override
@@ -261,10 +265,35 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
     if (_config.useMockData) {
       return _mockApiService.fetchAttendanceSummary();
     }
+    final secureStorage = getIt<SecureStorageService>();
+    final cardNo1 = await secureStorage.read('card_no') ?? '';
     final response = await _client.get<Map<String, dynamic>>(
-      '/attendance/summary',
+      '/auth/attendance/summary',
+      queryParameters: {
+        'emp_pk': cardNo1,
+        'from_date': '${from.year}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}',
+        'to_date': '${to.year}-${to.month.toString().padLeft(2, '0')}-${to.day.toString().padLeft(2, '0')}',
+      },
     );
-    throw UnimplementedError('Map attendance summary ${response.data}');
+    final data = response.data ?? {};
+    final body = data['body'] as Map<String, dynamic>? ?? {};
+    int safeInt(dynamic v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
+    return AttendanceSummary(
+      casualLeave: 0,
+      earnedLeave: 0,
+      medicalLeave: 0,
+      compensatoryLeave: 0,
+      sickLeave: 0,
+      lossOfPay: 0,
+      absent: 0,
+      outdoorDuty: 0,
+      approvedExtraWork: 0,
+      lateCount: 0,
+      totalDays: safeInt(body['total_days']),
+      presentDays: safeInt(body['present']),
+      incompleteDays: safeInt(body['incomplete']),
+      totalMinutes: safeInt(body['total_minutes']),
+    );
   }
 
   @override
@@ -273,9 +302,9 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       return _mockApiService.fetchProfile();
     }
 
-    // Get card_no1 from secure storage
+    // Get card_no from secure storage
     final secureStorage = getIt<SecureStorageService>();
-    final cardNo1 = await secureStorage.read('card_no1');
+    final cardNo1 = await secureStorage.read('card_no');
 
     if (cardNo1 == null || cardNo1.isEmpty) {
       throw Exception('Card number not found. Please login again.');
@@ -283,7 +312,7 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
 
     try {
       final response = await _client.get<Map<String, dynamic>>(
-        '/profile/$cardNo1',
+        '/auth/profile/$cardNo1',
       );
 
       final responseData = response.data;
@@ -317,22 +346,6 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
         if (value == null) return '-';
         final str = value.toString().trim();
         return str.isEmpty ? '-' : str;
-      }
-
-      DateTime? safeDate(dynamic value) {
-        if (value == null) return null;
-        try {
-          if (value is String) {
-            return DateTime.parse(value);
-          }
-          if (value is int) {
-            // Handle timestamp
-            return DateTime.fromMillisecondsSinceEpoch(value);
-          }
-        } catch (e) {
-          return null;
-        }
-        return null;
       }
 
       // Parse reporting manager from hod_nm and hod2
@@ -373,14 +386,15 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
         email: safeString(body['email_address']),
         phoneNumber: safeString(body['mobile_no']),
         gender: safeString(body['gender'] ?? 'M'), // Not in API, default to M
-        dateOfBirth: safeDate(body['date_of_birth']) ?? DateTime.now(),
-        joiningDate: safeDate(body['date_of_join']) ?? DateTime.now(),
+        // Keep backend date strings as-is (e.g. "27-oct-2025")
+        dateOfBirth: safeString(body['date_of_birth']),
+        joiningDate: safeString(body['date_of_join']),
         department: safeString(body['department']),
         designation: safeString(body['designation']),
         cadre: safeString(body['cadre']),
         location: safeString(body['brnchnm']),
         branch: safeString(body['brnchnm']),
-        cardNumber: safeString(body['card_no1'] ?? body['card_no']),
+        cardNumber: safeString(body['card_no'] ?? body['card_no']),
         reportingTo: reportingTo,
         emergencyContact: emergencyContact,
         workSchedule: WorkSchedule.defaultSchedule,
@@ -395,7 +409,7 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
                 safeString(body['nic_no']) != '-'
             ? safeString(body['nic_no'])
             : null,
-        nicExpDate: safeDate(body['nic_exp_date']),
+        nicExpDate: safeString(body['nic_exp_date']),
         eobiNo:
             safeString(body['eobi_no']).isNotEmpty &&
                 safeString(body['eobi_no']) != '-'
@@ -412,7 +426,7 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
                 safeString(body['manager_above_sts']) != '-'
             ? safeString(body['manager_above_sts'])
             : null,
-        confirmationDate: safeDate(body['confirmation_date']),
+        confirmationDate: safeString(body['confirmation_date']),
         companyAccommodation:
             safeString(body['company_accomodation']).isNotEmpty &&
                 safeString(body['company_accomodation']) != '-'
@@ -447,8 +461,10 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       await Future<void>.delayed(const Duration(milliseconds: 400));
       return;
     }
+    final secureStorage = getIt<SecureStorageService>();
+    final cardNo1 = await secureStorage.read('card_no') ?? '';
     await _client.post(
-      '/attendance/check-in',
+      '/auth/attendance/$cardNo1',
       data: {'automatic': automatic, 'note': note},
     );
   }
@@ -470,7 +486,7 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
     }
 
     final response = await _client.post<Map<String, dynamic>>(
-      '/attendance/biometric',
+      '/auth/attendance/face',
       data: request.toJson(),
     );
 
@@ -492,9 +508,9 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
       return true;
     }
 
-    // Get card_no1 from secure storage
+    // Get card_no from secure storage
     final secureStorage = getIt<SecureStorageService>();
-    final cardNo1 = await secureStorage.read('card_no1');
+    final cardNo1 = await secureStorage.read('card_no');
 
     if (cardNo1 == null || cardNo1.isEmpty) {
       throw Exception('Card number not found. Please login again.');
@@ -502,7 +518,7 @@ class LmsRemoteDataSourceImpl implements LmsRemoteDataSource {
 
     try {
       final response = await _client.post<Map<String, dynamic>>(
-        '/profile/change-password',
+        '/auth/change-password/$cardNo1',
         data: {'old_password': oldPassword, 'new_password': newPassword},
       );
 

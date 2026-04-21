@@ -21,7 +21,7 @@ class LeaveRemoteDataSourceImpl implements LeaveRemoteDataSource {
   @override
   Future<List<LeaveBalance>> fetchBalances(String cardNo1) async {
     final response = await _dio.get<Map<String, dynamic>>(
-      '/leave_data/$cardNo1',
+      '/auth/leave-balances/$cardNo1',
     );
 
     final responseData = response.data;
@@ -53,7 +53,7 @@ class LeaveRemoteDataSourceImpl implements LeaveRemoteDataSource {
     // Keeping parsing generic to support ORDS `body.items` format.
     // Base URL already points to /empdata — request the leavestatus path relative to it
     final response = await _dio.get<Map<String, dynamic>>(
-      '/leavestatus/$card_no1',
+      '/auth/leave-status/$card_no1',
     );
 
     final responseData = response.data;
@@ -80,7 +80,7 @@ class LeaveRemoteDataSourceImpl implements LeaveRemoteDataSource {
     required String empPk,
     required Map<String, dynamic> body,
   }) async {
-    await _dio.post('/leave/applications', data: {...body, 'emp_pk': empPk});
+    await _dio.post('/auth/apply-leave/$empPk', data: body);
   }
 
   LeaveBalance _mapBalance(Map<String, dynamic> json) {

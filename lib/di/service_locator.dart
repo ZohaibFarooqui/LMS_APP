@@ -11,6 +11,8 @@ import '../core/services/geocoding_service.dart';
 import '../core/services/geofence_service.dart';
 import '../core/services/local_storage_service.dart';
 import '../core/services/location_service.dart';
+import '../core/database/location_track_db.dart';
+import '../core/services/location_tracking_service.dart';
 import '../core/services/notification_service.dart';
 import '../core/services/permission_service.dart';
 import '../core/services/secure_storage_service.dart';
@@ -82,6 +84,7 @@ import '../features/face_auth/data/repositories/face_repository_impl.dart';
 import '../features/face_auth/domain/repositories/face_repository.dart';
 import '../features/face_auth/domain/usecases/face_status_usecase.dart';
 import '../features/face_auth/domain/usecases/register_face_usecase.dart';
+import '../features/face_auth/domain/usecases/identify_face_usecase.dart';
 import '../features/face_auth/domain/usecases/verify_face_usecase.dart'
     as face_auth;
 import '../features/face_auth/presentation/bloc/face_bloc.dart';
@@ -112,6 +115,10 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton<NotificationService>(() => NotificationService())
     ..registerLazySingleton<BiometricService>(() => BiometricService())
+    ..registerLazySingleton<LocationTrackDb>(() => LocationTrackDb())
+    ..registerLazySingleton<LocationTrackingService>(
+      () => LocationTrackingService(),
+    )
     ..registerLazySingleton<PermissionService>(() => PermissionService())
     ..registerLazySingleton<AttendanceFileService>(
       () => AttendanceFileService(),
@@ -165,8 +172,10 @@ Future<void> configureDependencies() async {
       ),
     );
 
-  Future<String?> cardNo1Provider() =>
-      getIt<SecureStorageService>().read('card_no1');
+  Future<String?> cardNo1Provider() async {
+    final ss = getIt<SecureStorageService>();
+    return await ss.read('card_no1') ?? await ss.read('card_no');
+  }
 
   Future<String?> empPkProvider() =>
       getIt<SecureStorageService>().read('emp_pk');
@@ -186,7 +195,7 @@ Future<void> configureDependencies() async {
   // Attendance
   getIt
     ..registerLazySingleton<AttendanceRemoteDataSource>(
-      () => AttendanceRemoteDataSourceImpl(),
+      () => AttendanceRemoteDataSourceImpl(cardNo1Provider: cardNo1Provider),
     )
     ..registerLazySingleton<AttendanceRepository>(
       () => AttendanceRepositoryImpl(
@@ -216,7 +225,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(() => SubmitLeaveRequestUseCase(getIt()))
     ..registerFactory(() => LeaveBalanceBloc(getIt()))
     ..registerFactory(() => LeaveStatusBloc(getIt()))
-    ..registerFactory(() => LeaveApplicationBloc(getIt()));
+    ..registerFactory(() => LeaveApplicationBloc(getIt(), getBalancesUseCase: getIt()));
 
   // Profile
   getIt
@@ -268,7 +277,7 @@ Future<void> configureDependencies() async {
   // Face Verification
   getIt
     ..registerLazySingleton<FaceVerificationRemoteDataSource>(
-      () => FaceVerificationRemoteDataSourceImpl(),
+      () => FaceVerificationRemoteDataSourceImpl(config: getIt<AppConfig>()),
     )
     ..registerLazySingleton<FaceStorageDataSource>(
       () => FaceStorageDataSourceImpl(getIt<SecureStorageService>()),
@@ -314,6 +323,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(() => FaceStatusUseCase(getIt()))
     ..registerLazySingleton(() => RegisterFaceUseCase(getIt()))
     ..registerLazySingleton(() => face_auth.VerifyFaceUseCase(getIt()))
+    ..registerLazySingleton(() => IdentifyFaceUseCase(getIt()))
     ..registerFactory(
       () => FaceBloc(
         faceStatusUseCase: getIt(),
@@ -326,4 +336,7 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton(
     () => AppBloc(storageService: getIt<LocalStorageService>()),
   );
+
+  // Initialize location tracking service (sets up notification channel + connectivity listener)
+  await getIt<LocationTrackingService>().init();
 }

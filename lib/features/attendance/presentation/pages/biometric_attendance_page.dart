@@ -14,6 +14,164 @@ class BiometricAttendancePage extends StatelessWidget {
     bloc.add(const BiometricAttendanceMarkRequested());
   }
 
+  void _showSuccessDialog(BuildContext context, String message) {
+    final isCheckOut = message.toLowerCase().contains('check-out') ||
+        message.toLowerCase().contains('checked out');
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (ctx.mounted) Navigator.of(ctx).pop();
+        });
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.r),
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80.w,
+                  height: 80.w,
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    color: AppColors.success,
+                    size: 56.sp,
+                  ),
+                ),
+                SizedBox(height: 20.h),
+                Text(
+                  isCheckOut
+                      ? 'Successfully Checked Out!'
+                      : 'Successfully Checked In!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20.sp,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.success,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white70
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 8.h),
+                Text(
+                  DateFormatter.formatTime(DateTime.now()),
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white54
+                        : AppColors.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 20.h),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 12.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                    ),
+                    child: Text('OK', style: TextStyle(fontSize: 16.sp)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 32.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80.w,
+                height: 80.w,
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.error_rounded,
+                  color: AppColors.error,
+                  size: 56.sp,
+                ),
+              ),
+              SizedBox(height: 20.h),
+              Text(
+                'Attendance Failed',
+                style: TextStyle(
+                  fontSize: 20.sp,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.error,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : AppColors.textSecondary,
+                ),
+              ),
+              SizedBox(height: 20.h),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                  ),
+                  child: Text('OK', style: TextStyle(fontSize: 16.sp)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -31,35 +189,17 @@ class BiometricAttendancePage extends StatelessWidget {
         listener: (context, state) {
           if (state.status == BiometricAttendanceStatus.success &&
               state.successMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.successMessage!),
-                backgroundColor: AppColors.success,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            _showSuccessDialog(context, state.successMessage!);
           } else if ((state.status == BiometricAttendanceStatus.error ||
                   state.status == BiometricAttendanceStatus.faceNotRegistered ||
                   state.status ==
                       BiometricAttendanceStatus.faceVerificationFailed) &&
               state.errorMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.errorMessage!),
-                backgroundColor: AppColors.error,
-                duration: const Duration(seconds: 4),
-              ),
-            );
+            _showErrorDialog(context, state.errorMessage!);
           } else if (state.status ==
                   BiometricAttendanceStatus.faceVerificationFailed &&
               state.faceVerificationMessage != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.faceVerificationMessage!),
-                backgroundColor: AppColors.error,
-                duration: const Duration(seconds: 4),
-              ),
-            );
+            _showErrorDialog(context, state.faceVerificationMessage!);
           }
         },
         buildWhen: (previous, current) {
@@ -138,7 +278,7 @@ class BiometricAttendancePage extends StatelessWidget {
                     state.status == BiometricAttendanceStatus.markingAttendance)
                   Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24.0),
+                      padding: EdgeInsets.all(24.w),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -146,7 +286,7 @@ class BiometricAttendancePage extends StatelessWidget {
                           if (state.status ==
                               BiometricAttendanceStatus.capturingFaceFrames)
                             Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
+                              padding: EdgeInsets.only(top: 16.h),
                               child: Text(
                                 'Capturing frames: ${state.capturedFramesCount}/${state.totalFramesToCapture}',
                                 style: TextStyle(fontSize: 14.sp),
@@ -155,7 +295,7 @@ class BiometricAttendancePage extends StatelessWidget {
                           else if (state.status ==
                               BiometricAttendanceStatus.verifyingFace)
                             Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
+                              padding: EdgeInsets.only(top: 16.h),
                               child: Text(
                                 'Verifying face...',
                                 style: TextStyle(fontSize: 14.sp),
@@ -164,7 +304,7 @@ class BiometricAttendancePage extends StatelessWidget {
                           else if (state.status ==
                               BiometricAttendanceStatus.markingAttendance)
                             Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
+                              padding: EdgeInsets.only(top: 16.h),
                               child: Text(
                                 'Marking attendance...',
                                 style: TextStyle(fontSize: 14.sp),
@@ -537,10 +677,10 @@ class _LocationInfoCard extends StatelessWidget {
           ),
           SizedBox(height: 20.h),
           if (state.isLoadingLocation)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: CircularProgressIndicator(),
+                padding: EdgeInsets.all(20.w),
+                child: const CircularProgressIndicator(),
               ),
             )
           else if (state.locationError != null)
@@ -853,140 +993,152 @@ class _ActionButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLocationEnabled = state.isLocationServiceEnabled;
 
-    final canCheckIn =
-        isLocationEnabled &&
-        state.attendanceType == 'check_in' &&
-        !state.hasCheckedInToday &&
-        state.canMarkAttendance;
-    final canCheckOut =
-        isLocationEnabled &&
-        state.attendanceType == 'check_out' &&
-        state.hasCheckedInToday &&
-        !state.hasCheckedOutToday &&
-        state.canMarkAttendance;
+    // Determine which action to show
+    final isComplete = state.hasCheckedInToday && state.hasCheckedOutToday;
+    final needsCheckOut = state.hasCheckedInToday && !state.hasCheckedOutToday;
+    final needsCheckIn = !state.hasCheckedInToday;
+
+    final canAct = isLocationEnabled && state.canMarkAttendance;
+
+    void showLocationSnack() {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Please turn on your mobile GPS / location services.',
+          ),
+          backgroundColor: AppColors.warning,
+          duration: const Duration(seconds: 2),
+          action: SnackBarAction(
+            label: 'Settings',
+            textColor: Colors.white,
+            onPressed: () {
+              context.read<BiometricAttendanceBloc>().add(
+                const BiometricAttendanceOpenLocationSettings(),
+              );
+            },
+          ),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Check In Button
-        ElevatedButton.icon(
-          onPressed: canCheckIn
-              ? () => onMarkAttendance(context, 'check_in')
-              : () {
-                  if (!isLocationEnabled) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                          'Please turn on your mobile location or GPS to mark attendance.',
-                        ),
-                        backgroundColor: AppColors.warning,
-                        duration: const Duration(seconds: 4),
-                        action: SnackBarAction(
-                          label: 'Settings',
-                          textColor: Colors.white,
-                          onPressed: () {
-                            context.read<BiometricAttendanceBloc>().add(
-                              const BiometricAttendanceOpenLocationSettings(),
-                            );
-                          },
-                        ),
-                      ),
-                    );
-                  }
-                },
-          icon: Icon(Icons.login_rounded, size: 20.sp),
-          label: Text(
-            'Check In',
-            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-          ),
-          style: ElevatedButton.styleFrom(
-            padding: EdgeInsets.symmetric(vertical: 16.h),
-            backgroundColor: canCheckIn
-                ? AppColors.success
-                : Colors.grey.shade300,
-            foregroundColor: canCheckIn ? Colors.white : Colors.grey.shade600,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r),
+        // ---- Single smart action button ----
+        if (isComplete)
+          _DoneCard(isDark: isDark, theme: theme)
+        else if (needsCheckOut)
+          ElevatedButton.icon(
+            onPressed: canAct
+                ? () => onMarkAttendance(context, 'check_out')
+                : showLocationSnack,
+            icon: Icon(Icons.logout_rounded, size: 22.sp),
+            label: Text(
+              'Check Out',
+              style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.bold),
             ),
-            elevation: canCheckIn ? 4 : 0,
-          ),
-        ),
-        SizedBox(height: 12.h),
-
-        // Check Out Button
-        ElevatedButton.icon(
-          onPressed: canCheckOut
-              ? () => onMarkAttendance(context, 'check_out')
-              : () {
-                  if (!isLocationEnabled) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text(
-                          'Please turn on your mobile location or GPS to mark attendance.',
-                        ),
-                        backgroundColor: AppColors.warning,
-                        duration: const Duration(seconds: 4),
-                        action: SnackBarAction(
-                          label: 'Settings',
-                          textColor: Colors.white,
-                          onPressed: () {
-                            context.read<BiometricAttendanceBloc>().add(
-                              const BiometricAttendanceOpenLocationSettings(),
-                            );
-                          },
-                        ),
-                      ),
-                    );
-                  }
-                },
-          icon: Icon(Icons.logout_rounded, size: 20.sp),
-          label: Text(
-            'Check Out',
-            style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-          ),
-          style: ElevatedButton.styleFrom(
-            padding: EdgeInsets.symmetric(vertical: 16.h),
-            backgroundColor: canCheckOut
-                ? AppColors.error
-                : Colors.grey.shade300,
-            foregroundColor: canCheckOut ? Colors.white : Colors.grey.shade600,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r),
-            ),
-            elevation: canCheckOut ? 4 : 0,
-          ),
-        ),
-
-        // Info Text
-        SizedBox(height: 16.h),
-        Container(
-          padding: EdgeInsets.all(12.w),
-          decoration: BoxDecoration(
-            color: (isDark ? AppColors.secondary : theme.primaryColor)
-                .withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8.r),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 16.sp,
-                color: isDark ? AppColors.secondary : theme.primaryColor,
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 18.h),
+              backgroundColor: canAct ? AppColors.error : Colors.grey.shade300,
+              foregroundColor: canAct ? Colors.white : Colors.grey.shade600,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14.r),
               ),
-              SizedBox(width: 8.w),
-              Expanded(
-                child: Text(
-                  state.biometricDescription,
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    color: isDark ? Colors.white70 : AppColors.textSecondary,
+              elevation: canAct ? 4 : 0,
+            ),
+          )
+        else
+          ElevatedButton.icon(
+            onPressed: canAct
+                ? () => onMarkAttendance(context, 'check_in')
+                : showLocationSnack,
+            icon: Icon(Icons.login_rounded, size: 22.sp),
+            label: Text(
+              needsCheckIn ? 'Check In' : 'Mark Attendance',
+              style: TextStyle(fontSize: 17.sp, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              padding: EdgeInsets.symmetric(vertical: 18.h),
+              backgroundColor:
+                  canAct ? AppColors.success : Colors.grey.shade300,
+              foregroundColor: canAct ? Colors.white : Colors.grey.shade600,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14.r),
+              ),
+              elevation: canAct ? 4 : 0,
+            ),
+          ),
+
+        // Info hint
+        if (!isComplete) ...[
+          SizedBox(height: 14.h),
+          Container(
+            padding: EdgeInsets.all(12.w),
+            decoration: BoxDecoration(
+              color: (isDark ? AppColors.secondary : theme.primaryColor)
+                  .withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.face_retouching_natural_rounded,
+                  size: 16.sp,
+                  color: isDark ? AppColors.secondary : theme.primaryColor,
+                ),
+                SizedBox(width: 8.w),
+                Expanded(
+                  child: Text(
+                    needsCheckOut
+                        ? 'Face scan required to check out'
+                        : 'Face scan required to check in',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color:
+                          isDark ? Colors.white70 : AppColors.textSecondary,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ],
+    );
+  }
+}
+
+class _DoneCard extends StatelessWidget {
+  const _DoneCard({required this.isDark, required this.theme});
+
+  final bool isDark;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(20.w),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle_rounded,
+              color: AppColors.success, size: 28.sp),
+          SizedBox(width: 12.w),
+          Text(
+            'Attendance Complete for Today',
+            style: TextStyle(
+              fontSize: 15.sp,
+              fontWeight: FontWeight.bold,
+              color: AppColors.success,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

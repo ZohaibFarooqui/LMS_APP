@@ -122,8 +122,8 @@ class _HomeShellState extends State<HomeShell> {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
+              blurRadius: 20.r,
+              offset: Offset(0, -5.r),
             ),
           ],
         ),

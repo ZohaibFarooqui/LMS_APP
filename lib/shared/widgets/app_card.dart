@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppCard extends StatelessWidget {
-  const AppCard({
+  AppCard({
     required this.child,
     super.key,
-    this.padding = const EdgeInsets.all(16),
+    EdgeInsets? padding,
     this.onTap,
-  });
+  }) : padding = padding ?? EdgeInsets.all(16.w);
 
   final Widget child;
   final EdgeInsets padding;
@@ -26,4 +27,3 @@ class AppCard extends StatelessWidget {
     return card;
   }
 }
-

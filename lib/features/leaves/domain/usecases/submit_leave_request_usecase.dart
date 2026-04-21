@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import '../entities/leave_request.dart';
 import '../repositories/leave_repository.dart';
 
@@ -6,6 +7,7 @@ class SubmitLeaveRequestUseCase {
 
   final LeaveRepository _repository;
 
-  Future<void> call(LeaveRequest request) => _repository.submitRequest(request);
+  Future<void> call(LeaveRequest request, {TimeOfDay? fromTime, TimeOfDay? toTime}) => 
+      _repository.submitRequest(request, fromTime: fromTime, toTime: toTime);
 }
 

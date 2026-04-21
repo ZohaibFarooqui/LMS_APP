@@ -60,9 +60,9 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
       orElse: () => cameras.first,
     );
 
-    // Use high resolution (1280x720) for better face detection accuracy
-    // Fallback to medium if high is not supported
-    ResolutionPreset resolutionPreset = ResolutionPreset.high;
+    // Use medium resolution (640x480) — sufficient for face detection,
+    // significantly faster YUV→RGB conversion than high (1280x720)
+    ResolutionPreset resolutionPreset = ResolutionPreset.medium;
     try {
       final controller = CameraController(
         frontCamera,
@@ -145,19 +145,10 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
         return null;
       }
 
-      // For YUV420, U and V planes are subsampled (half resolution)
-      // Each UV sample corresponds to a 2x2 block of Y pixels
-      final expectedUvWidth = width ~/ 2;
-      final expectedUvHeight = height ~/ 2;
-
-      debugPrint(
-        'FaceCameraDataSource: YUV conversion - Image: $width x $height, '
-        'Y plane: bytesPerRow=${yPlane.bytesPerRow}, bytes.length=${yPlane.bytes.length}, '
-        'expected height=${(yPlane.bytes.length / yPlane.bytesPerRow).ceil()}, '
-        'U plane: bytesPerRow=${uPlane.bytesPerRow}, bytes.length=${uPlane.bytes.length}, '
-        'V plane: bytesPerRow=$vPlane.bytesPerRow, bytes.length=${vPlane.bytes.length}, '
-        'Expected UV size: ${expectedUvWidth}x$expectedUvHeight',
-      );
+      // Detect semi-planar (NV12/NV21) vs planar (I420) format:
+      // NV12/NV21: UV bytesPerRow == full image width (interleaved, pixel stride = 2)
+      // I420:      UV bytesPerRow == half image width  (separate planes, pixel stride = 1)
+      final uvPixelStride = (uPlane.bytesPerRow > (width ~/ 2)) ? 2 : 1;
 
       // Create RGB image
       final image = img.Image(width: width, height: height);
@@ -168,39 +159,22 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
           try {
             final yIndex = y * yPlane.bytesPerRow + x;
 
-            // Ensure indices are within bounds
-            if (yIndex >= yPlane.bytes.length) {
-              debugPrint(
-                'FaceCameraDataSource: ERROR - Y plane index out of bounds: $yIndex >= ${yPlane.bytes.length}',
-              );
-              continue;
-            }
+            if (yIndex >= yPlane.bytes.length) continue;
 
-            // For YUV420 format, U and V planes are subsampled (half resolution)
-            // Each UV sample corresponds to a 2x2 block of Y pixels
             final uvRow = y ~/ 2;
             final uvCol = x ~/ 2;
 
-            // Calculate UV indices with proper bounds checking
-            int uValue = 128; // Default neutral U (gray)
-            int vValue = 128; // Default neutral V (gray)
+            int uValue = 128;
+            int vValue = 128;
 
-            // Calculate U plane index
-            if (uPlane.bytesPerRow > 0 &&
-                uvRow < (uPlane.bytes.length / uPlane.bytesPerRow).ceil()) {
-              final uIndex = uvRow * uPlane.bytesPerRow + uvCol;
-              if (uIndex >= 0 && uIndex < uPlane.bytes.length) {
-                uValue = uPlane.bytes[uIndex];
-              }
+            final uIndex = uvRow * uPlane.bytesPerRow + uvCol * uvPixelStride;
+            if (uIndex >= 0 && uIndex < uPlane.bytes.length) {
+              uValue = uPlane.bytes[uIndex];
             }
 
-            // Calculate V plane index
-            if (vPlane.bytesPerRow > 0 &&
-                uvRow < (vPlane.bytes.length / vPlane.bytesPerRow).ceil()) {
-              final vIndex = uvRow * vPlane.bytesPerRow + uvCol;
-              if (vIndex >= 0 && vIndex < vPlane.bytes.length) {
-                vValue = vPlane.bytes[vIndex];
-              }
+            final vIndex = uvRow * vPlane.bytesPerRow + uvCol * uvPixelStride;
+            if (vIndex >= 0 && vIndex < vPlane.bytes.length) {
+              vValue = vPlane.bytes[vIndex];
             }
 
             final yValue = yPlane.bytes[yIndex];
@@ -224,7 +198,6 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
         }
       }
 
-      debugPrint('FaceCameraDataSource: Successfully converted YUV420 to RGB');
       return image;
     } catch (e, stackTrace) {
       debugPrint('FaceCameraDataSource: ERROR in _convertYUV420ToImage - $e');
@@ -262,25 +235,43 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
           if (captureState != CaptureState.capturing) return;
 
           try {
-            // Convert CameraImage to RGB Image (full frame, not cropped)
             final rgbImage = _convertYUV420ToImage(image);
             if (rgbImage == null) {
-              debugPrint(
-                'FaceCameraDataSource: Failed to convert frame to RGB',
-              );
+              debugPrint('Failed to convert frame to RGB');
               return;
             }
 
-            frames.add(rgbImage);
+            // ================================
+            // 🔥 IMAGE PROCESSING PIPELINE
+            // ================================
+
+            // 1. FIX MIRROR (front camera)
+            img.Image fixed = img.flipHorizontal(rgbImage);
+
+            // 2. FIX ROTATION — sensor orientation 270 means raw image is landscape
+            //    when the phone is held in portrait; rotate to upright portrait
+            final sensorOrientation =
+                controller.description.sensorOrientation;
+            if (sensorOrientation == 270) {
+              fixed = img.copyRotate(fixed, angle: 90);
+            } else if (sensorOrientation == 90) {
+              fixed = img.copyRotate(fixed, angle: -90);
+            }
+
+            // 3. RESIZE to 480px wide — large enough for InsightFace detection
+            img.Image resized = img.copyResize(fixed, width: 480);
+
+            // Add full portrait frame
+            frames.add(resized);
             capturedFrames++;
 
             onProgress?.call(capturedFrames);
 
             debugPrint(
-              'FaceCameraDataSource: Captured frame $capturedFrames/$numFrames',
+              'Processed frame $capturedFrames/$numFrames (${resized.width}x${resized.height})',
             );
 
-            // Stop when we have enough frames
+            // Stop condition
             if (capturedFrames >= numFrames && !completer.isCompleted) {
               captureState = CaptureState.stopping;
               try {
@@ -290,25 +281,22 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
               completer.complete();
             }
           } catch (e) {
-            debugPrint('FaceCameraDataSource: Error processing frame: $e');
+            debugPrint('Frame processing error: $e');
           }
         });
       });
 
-      // Set a timeout to prevent infinite waiting
       await completer.future.timeout(
-        Duration(seconds: 10),
+        const Duration(seconds: 5),
         onTimeout: () {
-          debugPrint(
-            'FaceCameraDataSource: Capture timeout - captured ${frames.length} frames',
-          );
+          debugPrint('Capture timeout - captured ${frames.length} frames');
           captureState = CaptureState.stopping;
           controller.stopImageStream();
           captureState = CaptureState.completed;
         },
       );
     } catch (e) {
-      debugPrint('FaceCameraDataSource: Burst capture error: $e');
+      debugPrint('Burst capture error: $e');
     } finally {
       try {
         if (controller.value.isStreamingImages) {
@@ -319,9 +307,8 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
       captureState = CaptureState.completed;
     }
 
-    debugPrint(
-      'FaceCameraDataSource: Burst capture completed - ${frames.length} frames',
-    );
+    debugPrint('Burst capture completed - ${frames.length} frames');
+
     return frames;
   }
 

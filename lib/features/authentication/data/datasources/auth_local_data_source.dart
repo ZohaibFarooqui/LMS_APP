@@ -6,8 +6,9 @@ abstract class AuthLocalDataSource {
   Future<void> cacheUser(UserModel user);
   Future<UserModel?> getCachedUser();
   Future<void> clear();
-  Future<void> setRememberMe(bool value, {String? username});
+  Future<void> setRememberMe(bool value, {String? username, String? password});
   Future<String?> rememberedUsername();
+  Future<String?> rememberedPassword();
   Future<void> setBiometricEnabled(bool enabled);
   Future<bool> isBiometricEnabled();
 }
@@ -18,6 +19,7 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   static const _userKey = 'auth_user';
   static const _rememberKey = 'remember_me';
   static const _rememberedUsernameKey = 'remembered_username';
+  static const _rememberedPasswordKey = 'remembered_password';
   static const _biometricKey = 'biometric_enabled';
 
   final LocalStorageService _storage;
@@ -78,16 +80,29 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   }
 
   @override
-  Future<void> setRememberMe(bool value, {String? username}) async {
+  Future<void> setRememberMe(bool value, {String? username, String? password}) async {
     await _storage.writeString(_rememberKey, value.toString());
-    if (username != null) {
-      await _storage.writeString(_rememberedUsernameKey, username);
+    if (value) {
+      if (username != null) {
+        await _storage.writeString(_rememberedUsernameKey, username);
+      }
+      if (password != null) {
+        await _secureStorage.write(_rememberedPasswordKey, password);
+      }
+    } else {
+      await _storage.remove(_rememberedUsernameKey);
+      await _secureStorage.delete(_rememberedPasswordKey);
     }
   }
 
   @override
   Future<String?> rememberedUsername() async {
     return _storage.readString(_rememberedUsernameKey);
+  }
+
+  @override
+  Future<String?> rememberedPassword() async {
+    return _secureStorage.read(_rememberedPasswordKey);
   }
 
   @override

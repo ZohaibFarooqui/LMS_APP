@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 /// A modern glassmorphism card widget with blur effect
 /// 
@@ -66,7 +67,7 @@ class GlassCard extends StatelessWidget {
             sigmaY: blurAmount,
           ),
           child: Container(
-            padding: padding ?? const EdgeInsets.all(24),
+            padding: padding ?? EdgeInsets.all(24.w),
             decoration: BoxDecoration(
               color: bgColor,
               borderRadius: BorderRadius.circular(borderRadius),
