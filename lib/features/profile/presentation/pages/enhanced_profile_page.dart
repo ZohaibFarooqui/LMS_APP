@@ -102,9 +102,10 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               _newPasswordController.clear();
               _confirmPasswordController.clear();
               // Show WhatsApp notification message
+              final whatsappMessenger = ScaffoldMessenger.of(context);
               Future.delayed(const Duration(seconds: 1), () {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  whatsappMessenger.showSnackBar(
                     SnackBar(
                       content: Text(
                         'WhatsApp notification sent to your registered phone number.',
@@ -2150,6 +2151,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     final isDark = theme.brightness == Brightness.dark;
     final biometricService = getIt<BiometricService>();
     final authLocalDataSource = getIt<AuthLocalDataSource>();
+    final messenger = ScaffoldMessenger.of(context);
 
     // Check if biometric is already enabled
     final isEnabled = await authLocalDataSource.isBiometricEnabled();
@@ -2159,8 +2161,6 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
     if (!mounted) return;
 
     if (!isAvailable) {
-      if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
         SnackBar(
           content: const Text(
@@ -2235,6 +2235,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
+              final biometricMessenger = ScaffoldMessenger.of(context);
 
               // Authenticate to link
               final result = await biometricService.authenticate(
@@ -2245,7 +2246,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
               if (result.success) {
                 await authLocalDataSource.setBiometricEnabled(true);
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
+                biometricMessenger.showSnackBar(
                   SnackBar(
                     content: Text('Biometric linked successfully!'),
                     backgroundColor: AppColors.success,
@@ -2253,7 +2254,7 @@ class _EnhancedProfilePageState extends State<EnhancedProfilePage>
                 );
               } else {
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
+                biometricMessenger.showSnackBar(
                   SnackBar(
                     content: Text(result.message),
                     backgroundColor: AppColors.error,

@@ -5,8 +5,10 @@ class AppConfig {
     // Run `ipconfig` on Windows to find your IPv4 Address, e.g. 10.0.0.120
     // Emulator only: you can use http://10.0.2.2:8000 (maps to host 127.0.0.1)
     // this.baseUrl = 'http://10.0.0.120:8001',
-    this.baseUrl = 'http://apps.d-tech.com.pk:8001',
-    this.faceAuthBaseUrl = 'http://apps.d-tech.com.pk:8002',
+    // this.baseUrl = 'http://apps.d-tech.com.pk:8001',
+    // this.faceAuthBaseUrl = 'http://apps.d-tech.com.pk:8002',
+    this.baseUrl = 'http://163.61.91.221:8001',
+    this.faceAuthBaseUrl = 'http://163.61.91.221:8002',
     this.appName = 'YDC LMS',
     this.useMockData = false,
     this.defaultGeoLatitude = 24.85851,

@@ -153,7 +153,7 @@ class _LeaveApplicationView extends StatelessWidget {
             children: [
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: 'Leave Type'),
-                value: isCurrentTypeValid ? (currentType.isEmpty ? null : currentType) : null,
+                initialValue: isCurrentTypeValid ? (currentType.isEmpty ? null : currentType) : null,
                 items: availableTypes
                     .map(
                       (b) => DropdownMenuItem(

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path/path.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,7 +9,8 @@ import 'package:workmanager/workmanager.dart';
 const kLocationTaskName = 'lms_hourly_location';
 const kIsTrackingKey = 'lms_is_tracking';
 const kTrackingCardKey = 'lms_tracking_card_no';
-const _apiBase = 'http://apps.d-tech.com.pk:8001';
+// const _apiBase = 'http://apps.d-tech.com.pk:8001';
+const _apiBase = 'http://163.61.91.221:8001';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -21,10 +23,18 @@ void callbackDispatcher() {
       final cardNo = prefs.getString(kTrackingCardKey) ?? '';
       if (cardNo.isEmpty) return true;
 
+      // Check and request location permission
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        debugPrint('[LocationTask] Permission denied: $permission — skipping');
+        return true;
+      }
+
       // Capture location
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
-        timeLimit: const Duration(seconds: 15),
+        timeLimit: const Duration(seconds: 20),
       );
 
       // Persist to SQLite
@@ -34,16 +44,18 @@ void callbackDispatcher() {
         'latitude': position.latitude,
         'longitude': position.longitude,
         'accuracy': position.accuracy,
-        'recorded_at': DateTime.now().toIso8601String(),
+        'recorded_at': DateTime.now().toUtc().toIso8601String(),
         'synced': 0,
       });
+      debugPrint('[LocationTask] Saved lat=${position.latitude} lng=${position.longitude} for $cardNo');
 
-      // Opportunistic sync (fire-and-forget, failure is fine)
+      // Opportunistic sync (failure is fine — will retry next interval)
       await _trySyncFromDb(db, cardNo);
 
       await db.close();
-    } catch (_) {
-      // Location unavailable or DB error — silently skip, retry next interval
+    } catch (e, st) {
+      debugPrint('[LocationTask] Error: $e\n$st');
+      // Return true so WorkManager doesn't retry immediately
     }
 
     return true;

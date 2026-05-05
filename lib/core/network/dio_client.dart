@@ -19,7 +19,8 @@ class DioClient {
   // NOTE: Use your PC's LAN IP — 127.0.0.1 only works on emulator, not physical devices.
   // Run `ipconfig` on Windows to find it (look for IPv4 Address).
   // static const String _baseUrl = 'http://10.0.0.120:8001';
-  static const String _baseUrl = 'http://apps.d-tech.com.pk:8001';
+  // static const String _baseUrl = 'http://apps.d-tech.com.pk:8001';
+  static const String _baseUrl = 'http://163.61.91.221:8001';
 
   static final DioClient _instance = DioClient._();
 
