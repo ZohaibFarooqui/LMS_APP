@@ -7,12 +7,14 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image/image.dart' as img;
 import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/services/attendance_file_service.dart';
+import '../../../../core/services/location_tracking_config_service.dart';
 import '../../../../core/services/location_tracking_service.dart';
 import '../../../../core/services/attendance_validation_service.dart';
 import '../../../../core/services/biometric_service.dart';
@@ -280,6 +282,55 @@ class BiometricAttendanceBloc
     }
   }
 
+  /// Validate that the employee is within their attendance geofence.
+  ///
+  /// Returns `null` when attendance may proceed — geofence disabled for this
+  /// employee, the employee is within range, or the check could not be
+  /// completed (config/GPS error — we never lock the workforce out on a
+  /// transient failure). Returns an error message when the employee is
+  /// outside the allowed radius defined in HR_EMP_MASTER.
+  Future<String?> _checkGeofence(String empCode) async {
+    if (empCode.isEmpty) return null;
+    try {
+      final configService = getIt<LocationTrackingConfigService>();
+      final geofence = await configService.getGeofenceSettings(empCode);
+
+      if (geofence == null || !geofence.isEnforced) {
+        debugPrint(
+          'BiometricAttendanceBloc: Geofence not enforced for $empCode — '
+          'attendance allowed from any location',
+        );
+        return null;
+      }
+
+      final position = await _locationService.currentPosition();
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        geofence.latitude!,
+        geofence.longitude!,
+      );
+      debugPrint(
+        'BiometricAttendanceBloc: Geofence check for $empCode — '
+        'distance=${distance.toStringAsFixed(1)}m, '
+        'margin=${geofence.margin.toStringAsFixed(0)}m',
+      );
+
+      if (distance > geofence.margin) {
+        return 'You are ${distance.round()} m away from your designated work '
+            'location. You must be within ${geofence.margin.round()} m to '
+            'mark attendance.';
+      }
+      return null; // Within range
+    } catch (e) {
+      // Never block attendance on a config/GPS error — log and allow.
+      debugPrint(
+        'BiometricAttendanceBloc: Geofence check failed (allowing attendance): $e',
+      );
+      return null;
+    }
+  }
+
   /// Mark attendance with face verification
   ///
   /// FLOW: STEP 2: Face Verification → STEP 3: Mark Attendance (only if verification succeeds)
@@ -379,6 +430,26 @@ class BiometricAttendanceBloc
         ),
       );
       return;
+    }
+
+    // ============================================================
+    // GEOFENCE CHECK — block if FIXED_LOCATION='Y' and outside MARGIN.
+    // Normal mode: card_no is known up-front, so check before the camera
+    // opens to save the user from a pointless face scan.
+    // ============================================================
+    if (!identifyMode) {
+      emit(state.copyWith(isLoadingLocation: true));
+      final geoError = await _checkGeofence(cardNo1);
+      emit(state.copyWith(isLoadingLocation: false));
+      if (geoError != null) {
+        emit(
+          state.copyWith(
+            status: BiometricAttendanceStatus.ready,
+            errorMessage: geoError,
+          ),
+        );
+        return;
+      }
     }
 
     // Use location if available, otherwise use default coordinates
@@ -551,6 +622,20 @@ class BiometricAttendanceBloc
           '(card_no: $effectiveEmployeeId)',
         );
 
+        // GEOFENCE CHECK (identify mode) — only possible now that the face
+        // scan has revealed which employee this is.
+        final geoError = await _checkGeofence(effectiveEmployeeId);
+        if (geoError != null) {
+          emit(
+            state.copyWith(
+              status: BiometricAttendanceStatus.ready,
+              errorMessage: geoError,
+            ),
+          );
+          _isCapturing = false;
+          return;
+        }
+
         emit(
           state.copyWith(
             status: BiometricAttendanceStatus.markingAttendance,
@@ -713,6 +798,9 @@ class BiometricAttendanceBloc
         );
         debugPrint('Next type: $nextType');
 
+        // Capture attendance type BEFORE emitting — emit() updates state immediately
+        final markedType = state.attendanceType;
+
         // Emit success state - the UI will show dialog
         final newState = state.copyWith(
           status: BiometricAttendanceStatus.success,
@@ -734,11 +822,11 @@ class BiometricAttendanceBloc
           'Success state emitted. Status: ${newState.status}, HasCheckedIn: ${newState.hasCheckedInToday}, AttendanceType: ${newState.attendanceType}',
         );
 
-        // Start/stop background location tracking based on what was just marked
+        // Start/stop background location tracking using the captured pre-emit type
         final trackingService = getIt<LocationTrackingService>();
-        if (state.attendanceType == 'check_in' && (apiResponse?.success ?? false)) {
+        if (markedType == 'check_in' && (apiResponse?.success ?? false)) {
           unawaited(trackingService.startTracking(effectiveEmployeeId));
-        } else if (state.attendanceType == 'check_out' || todayStatus.hasCheckedOut) {
+        } else if (markedType == 'check_out') {
           unawaited(trackingService.stopTracking());
         }
       } else {
