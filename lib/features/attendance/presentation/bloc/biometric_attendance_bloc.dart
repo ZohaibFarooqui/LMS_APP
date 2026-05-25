@@ -542,16 +542,28 @@ class BiometricAttendanceBloc
         },
       );
 
-      if (frames.isEmpty || frames.length < numFrames) {
+      // Accept partial captures: slow devices may not complete all 20 frames
+      // in time. The backend can verify with as few as 5 frames; the more we
+      // send the higher the confidence. Require a minimum to avoid sending
+      // garbage when the camera failed entirely.
+      const int minFramesForVerification = 5;
+      if (frames.length < minFramesForVerification) {
         emit(
           state.copyWith(
             status: BiometricAttendanceStatus.faceVerificationFailed,
             errorMessage:
-                'Failed to capture enough frames (${frames.length}/$numFrames). Please try again.',
+                'Failed to capture enough frames (${frames.length}/$numFrames). '
+                'Please ensure your face is clearly visible and try again.',
           ),
         );
         _isCapturing = false;
         return;
+      }
+      if (frames.length < numFrames) {
+        debugPrint(
+          'BiometricAttendanceBloc: Proceeding with partial capture '
+          '(${frames.length}/$numFrames frames)',
+        );
       }
 
       // Convert frames to base64 JPEG

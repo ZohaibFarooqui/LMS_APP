@@ -214,7 +214,15 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
   }) async {
     final frames = <img.Image>[];
     int capturedFrames = 0;
+    int skippedBusy = 0;
+    int conversionErrors = 0;
 
+    // Busy flag prevents the camera stream (which fires at ~30fps) from
+    // queueing up dozens of slow YUV→RGB conversions in microtasks on slow
+    // devices. We only process one frame at a time; new stream frames that
+    // arrive mid-processing are silently dropped. The capture takes longer
+    // wall-clock but reliably progresses on any device.
+    bool processingFrame = false;
     CaptureState captureState = CaptureState.idle;
 
     try {
@@ -227,16 +235,28 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
     final completer = Completer<void>();
     captureState = CaptureState.capturing;
 
+    // Timeout scales with target frame count so slow devices still get to
+    // capture them all. 1.5 s/frame budget + 3 s baseline keeps a 20-frame
+    // burst inside 33 s — more than enough on phones that take ~500ms/frame.
+    final timeoutSeconds = (numFrames * 1.5).ceil() + 3;
+    final captureStarted = DateTime.now();
+
     try {
       await controller.startImageStream((CameraImage image) {
         if (captureState != CaptureState.capturing) return;
+        if (processingFrame) {
+          skippedBusy++;
+          return; // drop this frame; we'll get another one shortly
+        }
+        processingFrame = true;
 
         Future.microtask(() async {
-          if (captureState != CaptureState.capturing) return;
-
           try {
+            if (captureState != CaptureState.capturing) return;
+
             final rgbImage = _convertYUV420ToImage(image);
             if (rgbImage == null) {
+              conversionErrors++;
               debugPrint('Failed to convert frame to RGB');
               return;
             }
@@ -282,16 +302,24 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
             }
           } catch (e) {
             debugPrint('Frame processing error: $e');
+          } finally {
+            processingFrame = false; // release the busy lock
           }
         });
       });
 
       await completer.future.timeout(
-        const Duration(seconds: 5),
+        Duration(seconds: timeoutSeconds),
         onTimeout: () {
-          debugPrint('Capture timeout - captured ${frames.length} frames');
+          final elapsed = DateTime.now().difference(captureStarted).inSeconds;
+          debugPrint(
+            'Capture timeout after ${elapsed}s — captured ${frames.length}/$numFrames '
+            'frames (skipped while busy: $skippedBusy, conversion errors: $conversionErrors)',
+          );
           captureState = CaptureState.stopping;
-          controller.stopImageStream();
+          try {
+            controller.stopImageStream();
+          } catch (_) {}
           captureState = CaptureState.completed;
         },
       );
@@ -307,7 +335,11 @@ class FaceCameraDataSourceImpl implements FaceCameraDataSource {
       captureState = CaptureState.completed;
     }
 
-    debugPrint('Burst capture completed - ${frames.length} frames');
+    final elapsed = DateTime.now().difference(captureStarted).inSeconds;
+    debugPrint(
+      'Burst capture completed in ${elapsed}s — ${frames.length}/$numFrames frames '
+      '(skipped while busy: $skippedBusy, conversion errors: $conversionErrors)',
+    );
 
     return frames;
   }
